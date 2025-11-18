@@ -47,8 +47,8 @@ export default class ModulosSeeder extends BaseSeeder {
       },
       {
         id: 5,
-        nombre: 'Salidas',
-        nombreMostrar: 'Salidas',
+        nombre: 'Novedades',
+        nombreMostrar: 'Novedades',
         ruta: '/dashboard/salidas',
         icono: 'bi-car-front',
         estado: true,
