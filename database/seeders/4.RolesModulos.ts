@@ -64,7 +64,12 @@ export default class RolesModulosSeeder extends BaseSeeder {
           rom_id: 11,
           rom_rol_id: ROLES.CLIENTE,
           rom_modulo_id: 6,
-        }
+        },
+        {
+          rom_id: 12,
+          rom_rol_id: ROLES.CLIENTE,
+          rom_modulo_id: 1,
+        },
     ])
   }
 }
