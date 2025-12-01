@@ -41,7 +41,8 @@
     "./start/Rutas/ruta_novedadesvehiculo",
     "./start/Rutas/ruta_novedadesconductor",
     "./start/Rutas/ruta_nivelservicio",
-    "./start/Rutas/ruta_archivo_programa"
+    "./start/Rutas/ruta_archivo_programa",
+    "./start/Rutas/ruta_dashboard"
   ],
   "providers": [
     "./providers/AppProvider",
