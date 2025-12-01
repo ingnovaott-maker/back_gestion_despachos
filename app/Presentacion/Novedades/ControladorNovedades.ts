@@ -79,18 +79,9 @@ export default class ControladorNovedades {
         token = usuarioDb.tokenAutorizado || '';
       }
 
-      const novedad = await this.servicioNovedades.Crear(data, token, documento);
+      const resultado = await this.servicioNovedades.Crear(data, token, documento);
 
-      const novedadSerializada = novedad.serialize ? novedad.serialize() : novedad;
-
-      return CustomException.success(
-          response,
-          200,
-          "Novedad creada exitosamente",
-          ["Novedad creada exitosamente"],
-          null,
-          novedadSerializada
-      );
+      return response.send(resultado);
     } catch (error) {
       const { documento } = await request.obtenerPayloadJWT?.() || {};
       const requestData = request.all();

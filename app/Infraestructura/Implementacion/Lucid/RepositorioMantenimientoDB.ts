@@ -177,11 +177,15 @@ try {
           }
         );
 
-        // Si la respuesta es exitosa (200), actualizar el campo procesado
-        if (respuestaMantenimiento.status === 200 && mantenimiento.id) {
+        // Si la respuesta es exitosa (200 o 201), actualizar el campo procesado y guardar el ID en mantenimientoId
+        if ((respuestaMantenimiento.status === 200 || respuestaMantenimiento.status === 201) && mantenimiento.id) {
+          const mantenimientoIdExterno = respuestaMantenimiento.data?.id || respuestaMantenimiento.data?.data?.id;
           await TblMantenimiento.query()
             .where("id", mantenimiento.id)
-            .update({ procesado: true });
+            .update({
+              procesado: true,
+              mantenimientoId: mantenimientoIdExterno
+            });
         }
 
         // Retornar la respuesta del API externo
@@ -207,7 +211,9 @@ try {
       }
       throw new Error("No se pudo guardar el mantenimiento");
     }
-  }  async guardarPreventivo(datos: any, usuario: string, idRol: number): Promise<any> {
+  }
+
+  async guardarPreventivo(datos: any, usuario: string, idRol: number): Promise<any> {
     const {
       placa,
       fecha,
@@ -229,7 +235,23 @@ try {
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
-      // Enviar datos al API externo de mantenimiento preventivo
+      // 1. Guardar localmente primero
+      const preventivoDTO = {
+        placa,
+        fecha,
+        hora,
+        nit,
+        razonSocial,
+        tipoIdentificacion,
+        numeroIdentificacion,
+        nombresResponsable,
+        mantenimientoId,
+        detalleActividades,
+        procesado: false
+      };
+      const preventivo = await TblPreventivo.create(preventivoDTO);
+
+      // 2. Enviar datos al API externo de mantenimiento preventivo
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
@@ -257,7 +279,17 @@ try {
             }
           }
         );
-console.log(respuestaPreventivo.data);
+
+        // 3. Si la respuesta es exitosa (200 o 201), actualizar el campo procesado y mantenimientoId
+        if ((respuestaPreventivo.status === 200 || respuestaPreventivo.status === 201) && preventivo.id) {
+          const mantenimientoIdExterno = respuestaPreventivo.data?.mantenimiento_id || respuestaPreventivo.data?.mantenimientoId || respuestaPreventivo.data?.data?.mantenimientoId;
+          await TblPreventivo.query()
+            .where("id", preventivo.id)
+            .update({
+              procesado: true,
+              mantenimientoId: mantenimientoIdExterno || mantenimientoId
+            });
+        }
 
         // Retornar la respuesta del API externo
         return respuestaPreventivo.data;
@@ -306,7 +338,23 @@ console.log(respuestaPreventivo.data);
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
-      // Enviar datos al API externo de mantenimiento correctivo
+      // 1. Guardar localmente primero
+      const correctivoDTO = {
+        placa,
+        fecha,
+        hora,
+        nit,
+        razonSocial,
+        tipoIdentificacion,
+        numeroIdentificacion,
+        nombresResponsable,
+        mantenimientoId,
+        detalleActividades,
+        procesado: false
+      };
+      const correctivo = await TblCorrectivo.create(correctivoDTO);
+
+      // 2. Enviar datos al API externo de mantenimiento correctivo
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
@@ -334,6 +382,17 @@ console.log(respuestaPreventivo.data);
             }
           }
         );
+
+        // 3. Si la respuesta es exitosa (200 o 201), actualizar el campo procesado y mantenimientoId
+        if ((respuestaCorrectivo.status === 200 || respuestaCorrectivo.status === 201) && correctivo.id) {
+          const mantenimientoIdExterno = respuestaCorrectivo.data?.mantenimiento_id || respuestaCorrectivo.data?.mantenimientoId || respuestaCorrectivo.data?.data?.mantenimientoId;
+          await TblCorrectivo.query()
+            .where("id", correctivo.id)
+            .update({
+              procesado: true,
+              mantenimientoId: mantenimientoIdExterno || mantenimientoId
+            });
+        }
 
         // Retornar la respuesta del API externo
         return respuestaCorrectivo.data;
@@ -382,7 +441,34 @@ console.log(respuestaPreventivo.data);
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
-      // Enviar datos al API externo de alistamiento
+      // 1. Guardar localmente primero
+      const alistamientoDTO = {
+        placa,
+        tipoIdentificacionResponsable,
+        numeroIdentificacionResponsable,
+        nombreResponsable,
+        tipoIdentificacionConductor,
+        numeroIdentificacionConductor,
+        nombresConductor,
+        mantenimientoId,
+        detalleActividades,
+        estado: true,
+        procesado: false
+      };
+      const alistamiento = await TblAlistamiento.create(alistamientoDTO);
+
+      // Guardar actividades relacionadas si existen
+      if (actividades && actividades.length > 0 && alistamiento.id) {
+        for (const actividad of actividades) {
+          await alistamiento.related('actividades').attach({
+            [actividad.id]: {
+              tda_estado: actividad.estado
+            }
+          });
+        }
+      }
+
+      // 2. Enviar datos al API externo de alistamiento
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
@@ -409,6 +495,17 @@ console.log(respuestaPreventivo.data);
             }
           }
         );
+
+        // 3. Si la respuesta es exitosa (200 o 201), actualizar el campo procesado y mantenimientoId
+        if ((respuestaAlistamiento.status === 200 || respuestaAlistamiento.status === 201) && alistamiento.id) {
+          const mantenimientoIdExterno = respuestaAlistamiento.data?.mantenimiento_id || respuestaAlistamiento.data?.mantenimientoId || respuestaAlistamiento.data?.data?.mantenimientoId;
+          await TblAlistamiento.query()
+            .where("id", alistamiento.id)
+            .update({
+              procesado: true,
+              mantenimientoId: mantenimientoIdExterno || mantenimientoId
+            });
+        }
 
         // Retornar la respuesta del API externo
         return respuestaAlistamiento.data;
@@ -446,7 +543,55 @@ console.log(respuestaPreventivo.data);
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
-      // Enviar datos al API externo de autorización
+      // 1. Guardar localmente primero (sin los archivos que vienen como FormData)
+      const autorizacionDTO = {
+        fechaViaje: datos.fechaViaje,
+        origen: datos.origen,
+        destino: datos.destino,
+        tipoIdentificacionNna: datos.tipoIdentificacionNna,
+        numeroIdentificacionNna: datos.numeroIdentificacionNna,
+        nombresApellidosNna: datos.nombresApellidosNna,
+        situacionDiscapacidad: datos.situacionDiscapacidad,
+        tipoDiscapacidad: datos.tipoDiscapacidad,
+        perteneceComunidadEtnica: datos.perteneceComunidadEtnica,
+        tipoPoblacionEtnica: datos.tipoPoblacionEtnica,
+        tipoIdentificacionOtorgante: datos.tipoIdentificacionOtorgante,
+        numeroIdentificacionOtorgante: datos.numeroIdentificacionOtorgante,
+        nombresApellidosOtorgante: datos.nombresApellidosOtorgante,
+        numeroTelefonicoOtorgante: datos.numeroTelefonicoOtorgante,
+        correoElectronicoOtorgante: datos.correoElectronicoOtorgante,
+        direccionFisicaOtorgante: datos.direccionFisicaOtorgante,
+        sexoOtorgante: datos.sexoOtorgante,
+        generoOtorgante: datos.generoOtorgante,
+        calidadActua: datos.calidadActua,
+        tipoIdentificacionAutorizadoViajar: datos.tipoIdentificacionAutorizadoViajar,
+        numeroIdentificacionAutorizadoViajar: datos.numeroIdentificacionAutorizadoViajar,
+        nombresApellidosAutorizadoViajar: datos.nombresApellidosAutorizadoViajar,
+        numeroTelefonicoAutorizadoViajar: datos.numeroTelefonicoAutorizadoViajar,
+        direccionFisicaAutorizadoViajar: datos.direccionFisicaAutorizadoViajar,
+        tipoIdentificacionAutorizadoRecoger: datos.tipoIdentificacionAutorizadoRecoger,
+        numeroIdentificacionAutorizadoRecoger: datos.numeroIdentificacionAutorizadoRecoger,
+        nombresApellidosAutorizadoRecoger: datos.nombresApellidosAutorizadoRecoger,
+        numeroTelefonicoAutorizadoRecoger: datos.numeroTelefonicoAutorizadoRecoger,
+        direccionFisicaAutorizadoRecoger: datos.direccionFisicaAutorizadoRecoger,
+        copiaAutorizacionViajeNombreOriginal: datos.copiaAutorizacionViajeNombreOriginal,
+        copiaAutorizacionViajeDocumento: datos.copiaAutorizacionViajeDocumento,
+        copiaAutorizacionViajeRuta: datos.copiaAutorizacionViajeRuta,
+        copiaDocumentoParentescoNombreOriginal: datos.copiaDocumentoParentescoNombreOriginal,
+        copiaDocumentoParentescoDocumento: datos.copiaDocumentoParentescoDocumento,
+        copiaDocumentoParentescoRuta: datos.copiaDocumentoParentescoRuta,
+        copiaDocumentoIdentidadAutorizadoNombreOriginal: datos.copiaDocumentoIdentidadAutorizadoNombreOriginal,
+        copiaDocumentoIdentidadAutorizadoDocumento: datos.copiaDocumentoIdentidadAutorizadoDocumento,
+        copiaDocumentoIdentidadAutorizadoRuta: datos.copiaDocumentoIdentidadAutorizadoRuta,
+        copiaConstanciaEntregaNombreOriginal: datos.copiaConstanciaEntregaNombreOriginal,
+        copiaConstanciaEntregaDocumento: datos.copiaConstanciaEntregaDocumento,
+        copiaConstanciaEntregaRuta: datos.copiaConstanciaEntregaRuta,
+        mantenimientoId,
+        estado: true
+      };
+      const autorizacion = await TblAutorizaciones.create(autorizacionDTO);
+
+      // 2. Enviar datos al API externo de autorización
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
@@ -462,6 +607,19 @@ console.log(respuestaPreventivo.data);
             }
           }
         );
+
+        // 3. Si la respuesta es exitosa (200 o 201), actualizar el mantenimiento como procesado y el mantenimientoId en autorizacion
+        if ((respuestaAutorizacion.status === 200 || respuestaAutorizacion.status === 201) && mantenimientoId && autorizacion.id) {
+          const mantenimientoIdExterno = respuestaAutorizacion.data?.mantenimiento_id || respuestaAutorizacion.data?.mantenimientoId || respuestaAutorizacion.data?.data?.mantenimientoId;
+
+          await TblMantenimiento.query()
+            .where("id", mantenimientoId)
+            .update({ procesado: true });
+
+          await TblAutorizaciones.query()
+            .where("id", autorizacion.id)
+            .update({ mantenimientoId: mantenimientoIdExterno || mantenimientoId });
+        }
 
         // Retornar la respuesta del API externo
         return respuestaAutorizacion.data;

@@ -35,7 +35,23 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
           throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
         }
 
-        // Enviar datos al API externo
+        // 1. Guardar localmente primero
+        const novedadDTO = {
+          idDespacho: data.idDespacho,
+          idTipoNovedad: data.idTipoNovedad,
+          descripcion: data.descripcion,
+          otros: data.otros,
+          fechaNovedad: data.fechaNovedad,
+          horaNovedad: data.horaNovedad,
+          nitProveedor: data.nitProveedor,
+          fuenteDato: data.fuenteDato,
+          usuarioId: documento,
+          estado: true,
+          procesado: false
+        };
+        const novedad = await TblNovedades.create(novedadDTO);
+
+        // 2. Enviar datos al API externo
         try {
           const urlDespachos = Env.get("URL_DESPACHOS");
 
@@ -52,7 +68,23 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
             }
           );
 
-          return respuestaNovedad.data;
+          // 3. Si la respuesta es exitosa, actualizar procesado e idNovedad
+          if ((respuestaNovedad.status === 200 || respuestaNovedad.status === 201) && novedad.id) {
+            const idNovedadExterno =
+              respuestaNovedad.data?.obj?.obj?.id ||
+              respuestaNovedad.data?.obj?.id ||
+              respuestaNovedad.data?.data?.id ||
+              respuestaNovedad.data?.id;
+
+            await TblNovedades.query()
+              .where("id", novedad.id)
+              .update({
+                procesado: true,
+                idNovedad: idNovedadExterno || novedad.id
+              });
+          }
+
+          return respuestaNovedad.data?.obj || respuestaNovedad.data;
         } catch (errorExterno: any) {
           console.error("Error al enviar datos al API externo de novedades:", errorExterno);
           // Crear excepción con la respuesta completa del API externo si existe

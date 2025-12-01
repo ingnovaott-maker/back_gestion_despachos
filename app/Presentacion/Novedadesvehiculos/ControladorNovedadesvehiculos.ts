@@ -74,17 +74,9 @@ export default class ControladorNovedadesvehiculos {
         token = usuarioDb.tokenAutorizado || '';
       }
 
-      const novedad = await this.servicioNovedadesvehiculo.Crear(data, token, documento);
+      const resultado = await this.servicioNovedadesvehiculo.Crear(data, token, documento);
 
-      const novedadSerializada = novedad.serialize ? novedad.serialize() : novedad;
-
-      return CustomException.success(
-        response,
-        200,
-        "Novedad de vehículo creada ",
-        ["Novedad de vehículo creada exitosamente"],
-        novedadSerializada
-      );
+      return response.send(resultado);
 
     } catch (error) {
       const { documento } = await request.obtenerPayloadJWT?.() || {};

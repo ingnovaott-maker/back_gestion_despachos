@@ -34,7 +34,29 @@ export class RepositorioNovedadesconductorDB implements RepositorioNovedadescond
           throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
         }
 
-        // Enviar datos al API externo
+        // 1. Guardar localmente primero
+        const novedadConductorDTO = {
+          idNovedad: data.idNovedad,
+          tipoIdentificacionConductor: data.tipoIdentificacionConductor,
+          numeroIdentificacion: data.numeroIdentificacion,
+          primerNombreConductor: data.primerNombreConductor,
+          segundoNombreConductor: data.segundoNombreConductor,
+          primerApellidoConductor: data.primerApellidoConductor,
+          segundoApellidoConductor: data.segundoApellidoConductor,
+          idPruebaAlcoholimetria: data.idPruebaAlcoholimetria,
+          resultadoPruebaAlcoholimetria: data.resultadoPruebaAlcoholimetria,
+          fechaUltimaPruebaAlcoholimetria: data.fechaUltimaPruebaAlcoholimetria,
+          licenciaConduccion: data.licenciaConduccion,
+          idExamenMedico: data.idExamenMedico,
+          fechaUltimoExamenMedico: data.fechaUltimoExamenMedico,
+          observaciones: data.observaciones,
+          fechaVencimientoLicencia: data.fechaVencimientoLicencia,
+          estado: true,
+          procesado: false
+        };
+        const novedadConductor = await TblNovedadesconductor.create(novedadConductorDTO);
+
+        // 2. Enviar datos al API externo
         try {
           const urlDespachos = Env.get("URL_DESPACHOS");
 
@@ -50,6 +72,24 @@ export class RepositorioNovedadesconductorDB implements RepositorioNovedadescond
               }
             }
           );
+
+          // 3. Si la respuesta es exitosa, actualizar procesado e idNovedad
+          if ((respuestaNovedadConductor.status === 200 || respuestaNovedadConductor.status === 201) && novedadConductor.id) {
+            const idNovedadExterno =
+              respuestaNovedadConductor.data?.array_data?.obj?.id_novedad ||
+              respuestaNovedadConductor.data?.obj?.id_novedad ||
+              respuestaNovedadConductor.data?.array_data?.obj?.idNovedad ||
+              respuestaNovedadConductor.data?.obj?.idNovedad ||
+              respuestaNovedadConductor.data?.data?.idNovedad ||
+              respuestaNovedadConductor.data?.idNovedad;
+
+            await TblNovedadesconductor.query()
+              .where("id", novedadConductor.id)
+              .update({
+                procesado: true,
+                idNovedad: idNovedadExterno || data.idNovedad
+              });
+          }
 
           return respuestaNovedadConductor.data;
         } catch (errorExterno: any) {

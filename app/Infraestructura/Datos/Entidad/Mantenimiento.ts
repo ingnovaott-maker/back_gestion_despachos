@@ -12,7 +12,7 @@ export default class TblMantenimiento extends BaseModel {
   @column({ columnName: 'tmt_usuario_id' }) public usuarioId: number
   @column({ columnName: 'tmt_estado' }) public estado: boolean | null
   @column({ columnName: 'tmt_procesado' }) public procesado: boolean | null
-
+  @column({ columnName: 'tmt_mantenimiento_id' }) public mantenimientoId: number | null
   @column.dateTime({ autoCreate: true , columnName: 'tmt_creado'}) public createdAt: DateTime
 
   @column.dateTime({ autoCreate: true, autoUpdate: true, columnName: 'tmt_actualizado' }) public updatedAt: DateTime

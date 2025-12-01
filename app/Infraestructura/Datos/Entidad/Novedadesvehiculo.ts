@@ -73,6 +73,8 @@ export default class TblNovedadesvehiculo extends BaseModel {
   @column({ columnName: 'noh_id_poliza_extracontractual' })
   public idPolizaExtracontractual: string
 
+   @column({ columnName: 'noh_procesado' }) public procesado: boolean
+
   @column({ columnName: 'noh_vigenciacontractual' })
   public vigenciaContractual: Date
   @column({ columnName: 'noh_vigenciaextracontractual' })

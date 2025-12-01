@@ -13,7 +13,7 @@ export default class extends BaseSchema {
       table.integer('tba_tipo_identificacion_conductor')
       table.string('tba_numero_identificacion_conductor')
       table.string('tba_nombres_conductor')
-      table.integer('tba_mantenimiento_id').unsigned().references('tmt_id').inTable('tbl_mantenimientos').onDelete('cascade').onUpdate('cascade')
+      table.integer('tba_mantenimiento_id')
       table.text('tba_detalle_actividades')
       table.boolean('tba_estado').defaultTo(true)
       table.boolean('tba_procesado').defaultTo(false)

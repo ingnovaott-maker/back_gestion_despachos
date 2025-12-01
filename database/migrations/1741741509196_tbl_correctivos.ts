@@ -14,7 +14,7 @@ export default class extends BaseSchema {
       table.integer('tcv_tipo_identificacion')
       table.string('tcv_numero_identificacion')
       table.string('tcv_nombres_responsable', 200)
-      table.integer('tcv_mantenimiento_id').unsigned().references('tmt_id').inTable('tbl_mantenimientos').onDelete('cascade').onUpdate('cascade')
+      table.integer('tcv_mantenimiento_id')
       table.text('tcv_detalle_actividades')
       table.boolean('tcv_estado').defaultTo(true)
       table.boolean('tcv_procesado').defaultTo(false)

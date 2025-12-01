@@ -24,6 +24,7 @@ export default class TblNovedadesconductor extends BaseModel {
   @column.dateTime({ columnName: 'non_fecha_creacion' }) public fechaCreacion: DateTime
   @column.dateTime({ columnName: 'non_fecha_actualizacion' }) public fechaActualizacion: DateTime
   @column({ columnName: 'non_estado' }) public estado: boolean
+   @column({ columnName: 'non_procesado' }) public procesado: boolean
   @column.date({ columnName: 'non_fecha_vencimiento_licencia' }) public fechaVencimientoLicencia: DateTime
   @beforeCreate()
   public static setFechaCreacion(novedad: TblNovedadesconductor) {

@@ -18,20 +18,34 @@ export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma 
         throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
       }
 
-
+      // Obtener datos de autenticación según el rol
       let tokenAutorizacion = '';
       let nitVigilado = '';
       let usuarioId = 0;
+
       const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
+
+      if (!usuarioDb) {
+        throw new Exception("Usuario no encontrado", 404);
+      }
+
       if (idRol == 3) {
-        nitVigilado = usuarioDb?.administrador!;
-        const usuarioAdministrador = await TblUsuarios.query().where('identificacion', usuarioDb?.administrador!).first();
-        tokenAutorizacion = usuarioAdministrador?.tokenAutorizado!;
-        usuarioId = usuarioAdministrador?.id!;
+        nitVigilado = usuarioDb.administrador!;
+        const usuarioAdministrador = await TblUsuarios.query().where('identificacion', usuarioDb.administrador!).first();
+        if (!usuarioAdministrador) {
+          throw new Exception("Usuario administrador no encontrado", 404);
+        }
+        tokenAutorizacion = usuarioAdministrador.tokenAutorizado || '';
+        usuarioId = usuarioAdministrador.id!;
       } else if (idRol == 2) {
-        nitVigilado = usuarioDb?.identificacion!;
-        tokenAutorizacion = usuarioDb?.tokenAutorizado!;
-        usuarioId = usuarioDb?.id!;
+        nitVigilado = usuarioDb.identificacion!;
+        tokenAutorizacion = usuarioDb.tokenAutorizado || '';
+        usuarioId = usuarioDb.id!;
+      }
+
+      // Validar que el token no esté vacío
+      if (!tokenAutorizacion || tokenAutorizacion.trim() === '') {
+        throw new Exception("Token de autorización no encontrado. Por favor, contacte al administrador.", 400);
       }
 
 
@@ -57,10 +71,9 @@ export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma 
 
 
 
-// Enviar datos al API externo de mantenimiento
+      // Enviar datos al API externo de mantenimiento
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
-        const token = Env.get("TOKEN");
 
         const datosArchivo = {
           vigiladoId: parseInt(nitVigilado),
@@ -76,7 +89,7 @@ export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma 
           {
             headers: {
               'Authorization': `Bearer ${TokenExterno.get()}`,
-              'token': token,
+              'token': tokenAutorizacion,
               'Content-Type': 'application/json'
             }
           }

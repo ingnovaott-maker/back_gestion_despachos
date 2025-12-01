@@ -14,6 +14,33 @@ export default class RolesModulosSeeder extends BaseSeeder {
           rom_modulo_id: 1,
         },
         {
+          rom_id: 2,
+          rom_rol_id: ROLES.ADMINISTRADOR,
+          rom_modulo_id: 2,
+        },
+        {
+          rom_id: 3,
+          rom_rol_id: ROLES.ADMINISTRADOR,
+          rom_modulo_id: 3,
+        },
+        {
+          rom_id: 4,
+          rom_rol_id: ROLES.ADMINISTRADOR,
+          rom_modulo_id: 4,
+        },
+        {
+          rom_id: 5,
+          rom_rol_id: ROLES.ADMINISTRADOR,
+          rom_modulo_id: 5,
+        },
+        {
+          rom_id: 6,
+          rom_rol_id: ROLES.ADMINISTRADOR,
+          rom_modulo_id: 6,
+        },
+
+
+        {
           rom_id: 7,
           rom_rol_id: ROLES.CLIENTE,
           rom_modulo_id: 2,

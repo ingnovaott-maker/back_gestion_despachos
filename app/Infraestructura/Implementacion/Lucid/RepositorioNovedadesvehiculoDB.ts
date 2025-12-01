@@ -34,7 +34,35 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
           throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
         }
 
-        // Enviar datos al API externo
+        // 1. Guardar localmente primero
+        const novedadVehiculoDTO = {
+          idNovedad: data.idNovedad,
+          placa: data.placa,
+          soat: data.soat,
+          fechaVencimientoSoat: data.fechaVencimientoSoat,
+          revisionTecnicoMecanica: data.revisionTecnicoMecanica,
+          fechaRevisionTecnicoMecanica: data.fechaRevisionTecnicoMecanica,
+          idPolizas: data.idPolizas,
+          tipoPoliza: data.tipoPoliza,
+          tarjetaOperacion: data.tarjetaOperacion,
+          fechaVencimientoTarjetaOperacion: data.fechaVencimientoTarjetaOperacion,
+          idMatenimientoPreventivo: data.idMatenimientoPreventivo,
+          fechaMantenimientoPreventivo: data.fechaMantenimientoPreventivo,
+          idProtocoloAlistamientodiario: data.idProtocoloAlistamientodiario,
+          fechaProtocoloAlistamientodiario: data.fechaProtocoloAlistamientodiario,
+          observaciones: data.observaciones,
+          clase: data.clase,
+          nivelServicio: data.nivelServicio,
+          idPolizaContractual: data.idPolizaContractual,
+          idPolizaExtracontractual: data.idPolizaExtracontractual,
+          vigenciaContractual: data.vigenciaContractual,
+          vigenciaExtracontractual: data.vigenciaExtracontractual,
+          estado: true,
+          procesado: false
+        };
+        const novedadVehiculo = await TblNovedadesvehiculo.create(novedadVehiculoDTO);
+
+        // 2. Enviar datos al API externo
         try {
           const urlDespachos = Env.get("URL_DESPACHOS");
 
@@ -50,6 +78,24 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
               }
             }
           );
+
+          // 3. Si la respuesta es exitosa, actualizar procesado e idNovedad
+          if ((respuestaNovedadVehiculo.status === 200 || respuestaNovedadVehiculo.status === 201) && novedadVehiculo.id) {
+            const idNovedadExterno =
+              respuestaNovedadVehiculo.data?.array_data?.obj?.id_novedad ||
+              respuestaNovedadVehiculo.data?.obj?.id_novedad ||
+              respuestaNovedadVehiculo.data?.array_data?.obj?.idNovedad ||
+              respuestaNovedadVehiculo.data?.obj?.idNovedad ||
+              respuestaNovedadVehiculo.data?.data?.idNovedad ||
+              respuestaNovedadVehiculo.data?.idNovedad;
+
+            await TblNovedadesvehiculo.query()
+              .where("id", novedadVehiculo.id)
+              .update({
+                procesado: true,
+                idNovedad: idNovedadExterno || data.idNovedad
+              });
+          }
 
           return respuestaNovedadVehiculo.data;
         } catch (errorExterno: any) {
