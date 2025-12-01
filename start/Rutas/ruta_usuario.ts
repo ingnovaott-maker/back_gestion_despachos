@@ -26,3 +26,4 @@ Route.group(() => {
 }).prefix('api/v1/usuarios')
 Route.get('/', `${controlador}.obtenerVigilados`).prefix('api/v1/vigilados')
 Route.get('/', `${controlador}.obtenerTodosVigilados`).prefix('api/v1/vigilados-todos')
+Route.get('/', `${controlador}.obtenerUsuariosRol2`).prefix('api/v1/usuarios-clientes')

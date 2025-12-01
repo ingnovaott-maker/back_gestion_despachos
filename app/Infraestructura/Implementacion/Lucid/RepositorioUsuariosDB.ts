@@ -163,5 +163,27 @@ if(params.administrador){
 
   }
 
+  async obtenerUsuariosRol2 (): Promise<{usuarios: Usuario[]}> {
+    try {
+      const rawQuery = `
+        SELECT
+          tu.usn_identificacion AS nit,
+          tu.usn_nombre AS razon_social
+        FROM tbl_usuarios tu
+        WHERE tu.usn_rol_id = 2
+        ORDER BY tu.usn_nombre ASC
+      `;
+
+      const usuariosDB = await Database.rawQuery(rawQuery);
+      const usuarios = usuariosDB.rows
+
+      return {usuarios}
+
+    } catch (error) {
+      console.log(error);
+      throw new Error("Error al obtener usuarios con rol 2");
+    }
+  }
+
 
 }

@@ -98,6 +98,27 @@ export default class ControladorUsuario {
     )
   }
 
+  public async obtenerUsuariosRol2 ({ response }:HttpContextContract) {
+    try {
+      const resultado = await this.service.obtenerUsuariosRol2()
+
+      return CustomException.success(
+        response,
+        200,
+        'Listado de usuarios con rol cliente',
+        ['Listado generado exitosamente'],
+        resultado
+      )
+    } catch (error) {
+      return CustomException.error(
+        response,
+        500,
+        'Error al obtener usuarios',
+        [error.message]
+      )
+    }
+  }
+
     //return usuarios
   //}
 

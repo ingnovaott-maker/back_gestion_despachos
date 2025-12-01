@@ -6,6 +6,7 @@ export interface RepositorioUsuario {
   obtenerUsuarios(param: any): Promise<{usuarios: Usuario[], paginacion: Paginador}>
   obtenerVigilados(param: any): Promise<{usuarios: Usuario[]}>
   obtenerTodosVigilados(param: any): Promise<{usuarios: Usuario[]}>
+  obtenerUsuariosRol2(): Promise<{usuarios: Usuario[]}>
   obtenerUsuarioPorId(id: number): Promise<Usuario>
   obtenerUsuarioPorRol(rol: string): Promise<Usuario[]>
   guardarUsuario(usuario: Usuario): Promise<Usuario>

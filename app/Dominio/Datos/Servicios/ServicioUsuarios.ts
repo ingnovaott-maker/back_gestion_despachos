@@ -82,6 +82,10 @@ export class ServicioUsuarios {
     return this.repositorio.obtenerTodosVigilados(params);
   }
 
+  async obtenerUsuariosRol2(): Promise<{ usuarios: Usuario[]}> {
+    return this.repositorio.obtenerUsuariosRol2();
+  }
+
     private construirLogoAdjunto(): Fichero | undefined {
     const nombreLogo = Env.get('LOGO', 'logo.png');
     // Ruta preferida uploads/logos/nombreLogo
