@@ -7,23 +7,42 @@ export class ObtenerResumenDashboard {
 
   public async ejecutar(nit?: string): Promise<DashboardResumenDto[]> {
     // Si se proporciona un NIT específico, filtrar por ese NIT
-    const whereClause = nit ? `WHERE u.usn_identificacion = '${nit}'` : ''
+    const whereClause = nit ? `AND u.usn_identificacion = '${nit}'` : ''
 
     const query = `
       SELECT
         u.usn_identificacion as nitEmpresa,
         u.usn_nombre as nombreEmpresa,
-        COALESCE(COUNT(CASE WHEN m.tmt_tipo_id = 2 THEN 1 END), 0) as mantenimientoCorrectivo,
-        COALESCE(COUNT(CASE WHEN m.tmt_tipo_id = 1 THEN 1 END), 0) as mantenimientoPreventivo,
-        COALESCE(COUNT(CASE WHEN m.tmt_tipo_id = 3 THEN 1 END), 0) as alistamiento,
-        COALESCE(COUNT(CASE WHEN m.tmt_tipo_id = 4 THEN 1 END), 0) as autorizaciones,
-        COALESCE(COUNT(DISTINCT n.nov_id), 0) as novedades
+        COALESCE(
+          (SELECT COUNT(*) FROM tbl_mantenimientos m
+           WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
+           AND m.tmt_tipo_id = 2), 0
+        ) as mantenimientoCorrectivo,
+        COALESCE(
+          (SELECT COUNT(*) FROM tbl_mantenimientos m
+           WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
+           AND m.tmt_tipo_id = 1), 0
+        ) as mantenimientoPreventivo,
+        COALESCE(
+          (SELECT COUNT(*) FROM tbl_mantenimientos m
+           WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
+           AND m.tmt_tipo_id = 3), 0
+        ) as alistamiento,
+        COALESCE(
+          (SELECT COUNT(*) FROM tbl_mantenimientos m
+           WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
+           AND m.tmt_tipo_id = 4), 0
+        ) as autorizaciones,
+        COALESCE(
+          (SELECT COUNT(*) FROM tbl_novedades n
+           WHERE n.nov_usuario_id = u.usn_identificacion), 0
+        ) as novedades
       FROM tbl_usuarios u
-      LEFT JOIN tbl_mantenimientos m ON u.usn_identificacion = CAST(m.tmt_usuario_id AS VARCHAR)
-      LEFT JOIN tbl_novedades n ON u.usn_identificacion = n.nov_usuario_id
+      WHERE (
+        EXISTS (SELECT 1 FROM tbl_mantenimientos m WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion)
+        OR EXISTS (SELECT 1 FROM tbl_novedades n WHERE n.nov_usuario_id = u.usn_identificacion)
+      )
       ${whereClause}
-      GROUP BY u.usn_identificacion, u.usn_nombre
-      HAVING COUNT(m.tmt_id) > 0 OR COUNT(n.nov_id) > 0
       ORDER BY u.usn_nombre
     `
 
