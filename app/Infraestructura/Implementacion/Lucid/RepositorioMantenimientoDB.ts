@@ -51,9 +51,6 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       throw new Exception("Usuario no encontrado", 404);
     }
 
-    console.log({usuarioDb});
-
-
     if (idRol == 3) {
       nitVigilado = usuarioDb.administrador!;
       const usuarioAdministrador = await TblUsuarios.query().where('identificacion', usuarioDb.administrador!).first();
