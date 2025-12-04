@@ -5,6 +5,7 @@ import FuncionalidadesSeeder from "./3.Funcionalidad";
 import RolesModulosSeeder from "./4.RolesModulos";
 import UsuariosSeeder from "./5.Usuario";
 import TipoMantenimientoSeeder from "./6.TipoMantenimiento";
+import ActividadesAlistamientoSeeder from "./7.Actividades";
 
 export default class extends BaseSeeder {
   public async run() {
@@ -15,6 +16,7 @@ export default class extends BaseSeeder {
     await new RolesModulosSeeder(this.client).run();
     await new UsuariosSeeder(this.client).run();
     await new TipoMantenimientoSeeder(this.client).run();
+    await new ActividadesAlistamientoSeeder(this.client).run();
 
   }
 }
