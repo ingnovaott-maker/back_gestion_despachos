@@ -14,13 +14,16 @@ export default class ControladorDashboard {
   /**
    * Obtiene el resumen de mantenimientos y novedades agrupados por empresa
    * GET /dashboard
-   * Query params: nit (opcional) - Si se proporciona, filtra por ese NIT específico
+   * Query params:
+   *   - nit (opcional): Filtra por ese NIT específico
+   *   - fechaInicio (opcional): Fecha inicio en formato YYYY-MM-DD
+   *   - fechaFin (opcional): Fecha fin en formato YYYY-MM-DD
    */
   public async obtenerResumen({ request, response }: HttpContextContract) {
     try {
-      const { nit } = request.qs()
+      const { nit, fechaInicio, fechaFin } = request.qs()
 
-      const resumen = await this.obtenerResumenDashboard.ejecutar(nit)
+      const resumen = await this.obtenerResumenDashboard.ejecutar(nit, fechaInicio, fechaFin)
 
       return response.status(200).json(resumen)
     } catch (error) {

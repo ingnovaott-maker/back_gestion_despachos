@@ -5,45 +5,80 @@ import { RepositorioMantenimiento } from '../Repositorios/RepositorioMantenimien
 export class ObtenerResumenDashboard {
   constructor(private repositorioMantenimiento?: RepositorioMantenimiento) {}
 
-  public async ejecutar(nit?: string): Promise<DashboardResumenDto[]> {
+  public async ejecutar(nit?: string, fechaInicio?: string, fechaFin?: string): Promise<DashboardResumenDto[]> {
     // Si se proporciona un NIT específico, filtrar por ese NIT
-    const whereClause = nit ? `AND u.usn_identificacion = '${nit}'` : ''
+    const whereClauseNit = nit ? `AND u.usn_identificacion = '${nit}'` : ''
+
+    // Construir filtros de fecha
+    const fechaFilter = fechaInicio && fechaFin
+      ? `AND fpu.fecha BETWEEN '${fechaInicio}' AND '${fechaFin}'`
+      : fechaInicio
+      ? `AND fpu.fecha >= '${fechaInicio}'`
+      : fechaFin
+      ? `AND fpu.fecha <= '${fechaFin}'`
+      : ''
 
     const query = `
+      WITH fechas_por_usuario AS (
+        -- Obtener todas las fechas únicas de mantenimientos
+        SELECT
+          CAST(m.tmt_usuario_id AS VARCHAR) as usn_identificacion,
+          m.tmt_fecha_diligenciamiento::DATE as fecha
+        FROM tbl_mantenimientos m
+        WHERE 1=1
+        ${fechaInicio && fechaFin ? `AND m.tmt_fecha_diligenciamiento::DATE BETWEEN '${fechaInicio}'::DATE AND '${fechaFin}'::DATE` : ''}
+        ${fechaInicio && !fechaFin ? `AND m.tmt_fecha_diligenciamiento::DATE >= '${fechaInicio}'::DATE` : ''}
+        ${!fechaInicio && fechaFin ? `AND m.tmt_fecha_diligenciamiento::DATE <= '${fechaFin}'::DATE` : ''}
+
+        UNION
+
+        -- Obtener todas las fechas únicas de novedades
+        SELECT
+          n.nov_usuario_id as usn_identificacion,
+          n.nov_fecha_novedad as fecha
+        FROM tbl_novedades n
+        WHERE 1=1
+        ${fechaInicio && fechaFin ? `AND n.nov_fecha_novedad BETWEEN '${fechaInicio}' AND '${fechaFin}'` : ''}
+        ${fechaInicio && !fechaFin ? `AND n.nov_fecha_novedad >= '${fechaInicio}'` : ''}
+        ${!fechaInicio && fechaFin ? `AND n.nov_fecha_novedad <= '${fechaFin}'` : ''}
+      )
       SELECT
         u.usn_identificacion as nitEmpresa,
         u.usn_nombre as nombreEmpresa,
+        TO_CHAR(fpu.fecha, 'DD/MM/YYYY') as fecha,
         COALESCE(
           (SELECT COUNT(*) FROM tbl_mantenimientos m
            WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
-           AND m.tmt_tipo_id = 2), 0
+           AND m.tmt_tipo_id = 2
+           AND m.tmt_fecha_diligenciamiento::DATE = fpu.fecha), 0
         ) as mantenimientoCorrectivo,
         COALESCE(
           (SELECT COUNT(*) FROM tbl_mantenimientos m
            WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
-           AND m.tmt_tipo_id = 1), 0
+           AND m.tmt_tipo_id = 1
+           AND m.tmt_fecha_diligenciamiento::DATE = fpu.fecha), 0
         ) as mantenimientoPreventivo,
         COALESCE(
           (SELECT COUNT(*) FROM tbl_mantenimientos m
            WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
-           AND m.tmt_tipo_id = 3), 0
+           AND m.tmt_tipo_id = 3
+           AND m.tmt_fecha_diligenciamiento::DATE = fpu.fecha), 0
         ) as alistamiento,
         COALESCE(
           (SELECT COUNT(*) FROM tbl_mantenimientos m
            WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion
-           AND m.tmt_tipo_id = 4), 0
+           AND m.tmt_tipo_id = 4
+           AND m.tmt_fecha_diligenciamiento::DATE = fpu.fecha), 0
         ) as autorizaciones,
         COALESCE(
           (SELECT COUNT(*) FROM tbl_novedades n
-           WHERE n.nov_usuario_id = u.usn_identificacion), 0
+           WHERE n.nov_usuario_id = u.usn_identificacion
+           AND n.nov_fecha_novedad = fpu.fecha), 0
         ) as novedades
-      FROM tbl_usuarios u
-      WHERE (
-        EXISTS (SELECT 1 FROM tbl_mantenimientos m WHERE CAST(m.tmt_usuario_id AS VARCHAR) = u.usn_identificacion)
-        OR EXISTS (SELECT 1 FROM tbl_novedades n WHERE n.nov_usuario_id = u.usn_identificacion)
-      )
-      ${whereClause}
-      ORDER BY u.usn_nombre
+      FROM fechas_por_usuario fpu
+      INNER JOIN tbl_usuarios u ON u.usn_identificacion = fpu.usn_identificacion
+      WHERE 1=1 ${whereClauseNit} ${fechaFilter}
+      ORDER BY fpu.fecha DESC, u.usn_nombre
     `
 
     const resultado = await Database.rawQuery(query)
@@ -57,7 +92,8 @@ export class ObtenerResumenDashboard {
         parseInt(fila.mantenimientopreventivo || fila.mantenimientoPreventivo) || 0,
         parseInt(fila.alistamiento) || 0,
         parseInt(fila.autorizaciones) || 0,
-        parseInt(fila.novedades) || 0
+        parseInt(fila.novedades) || 0,
+        fila.fecha
       )
     })
 
