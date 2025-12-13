@@ -2,7 +2,7 @@
 export interface RepositorioMantenimiento{
     listarPlacas(tipoId:number, usuario:string, idRol:number): Promise<any[]>
     listarPlacasTodas(tipoId:number, vigiladoId:string): Promise<any[]>
-    listarHistorial(tipoId:number, vigiladoId:string, placa:string): Promise<any[]>
+    listarHistorial(tipoId:number, vigiladoId:string, placa:string, idRol:number ): Promise<any[]>
     listarHistorialExportar(tipoId:number, vigiladoId:string, placa:string): Promise<any[]>
     guardarMantenimiento(datos:any, usuario:string, idRol:number, proveedorId?:string): Promise<any>
     guardarPreventivo(datos:any, usuario:string, idRol:number): Promise<any>

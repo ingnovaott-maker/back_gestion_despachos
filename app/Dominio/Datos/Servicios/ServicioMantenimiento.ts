@@ -38,8 +38,8 @@ export class ServicioMantenimeinto{
     return this.repositorio.visualizarAlistamiento(mantenimientoId, usuario, idRol)
   }
 
-  async listarHistorial (tipoId:number, vigiladoId:string, placa:string): Promise<any>{
-    return this.repositorio.listarHistorial(tipoId, vigiladoId, placa)
+  async listarHistorial (tipoId:number, vigiladoId:string, placa:string, idRol:number): Promise<any>{
+    return this.repositorio.listarHistorial(tipoId, vigiladoId, placa, idRol)
   }
 
   async listarActividades (): Promise<any>{

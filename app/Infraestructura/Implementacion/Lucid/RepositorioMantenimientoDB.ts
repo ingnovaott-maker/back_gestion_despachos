@@ -854,25 +854,28 @@ try {
   async listarHistorial(
     tipoId: number,
     vigiladoId: string,
-    placa: string
+    placa: string,
+   idRol: number
   ): Promise<any[]> {
     try {
       if (!TokenExterno.get() || !TokenExterno.isVigente()) {
         throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
       }
 
+      const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(vigiladoId, idRol);
+
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
-        // Obtener el usuario para conseguir el token de autorización
+      /*   // Obtener el usuario para conseguir el token de autorización
         const usuarioDb = await TblUsuarios.query().where('identificacion', vigiladoId).first();
         if (!usuarioDb) {
           throw new Exception("Usuario no encontrado", 404);
         }
-        const tokenAutorizacion = usuarioDb.tokenAutorizado || '';
+        const tokenAutorizacion = usuarioDb.tokenAutorizado || ''; */
 
         const respuestaHistorial = await axios.get(
-          `${urlMantenimientos}/mantenimiento/listar-historial?tipoId=${tipoId}&vigiladoId=${vigiladoId}&placa=${placa}`,
+          `${urlMantenimientos}/mantenimiento/listar-historial?tipoId=${tipoId}&vigiladoId=${nitVigilado}&placa=${placa}`,
           {
             headers: {
               'Authorization': `Bearer ${TokenExterno.get()}`,
