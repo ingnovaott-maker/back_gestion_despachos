@@ -40,9 +40,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   /**
    * Obtiene los datos de autenticación según el rol del usuario
    */
-  private async obtenerDatosAutenticacion(usuario: string, idRol: number): Promise<{tokenAutorizacion: string, nitVigilado: string, usuarioId: number}> {
+  private async obtenerDatosAutenticacion(usuario: string, idRol: number): Promise<{tokenAutorizacion: string, nitVigilado: any, usuarioId: number}> {
     let tokenAutorizacion = '';
-    let nitVigilado = '';
+    let nitVigilado;
     let usuarioId = 0;
 
     const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
@@ -141,18 +141,19 @@ try {
       const fechaCreacion = this.getColombiaDateTime();
       const mantenimientoDTO = {
         placa,
-        usuarioId: vigiladoId,
+        usuarioId: nitVigilado,
         tipoId,
         createdAt: fechaCreacion,
         fechaDiligenciamiento: fechaCreacion,
       };
       if (tipoId != 4) {
         await TblMantenimiento.query()
-          .where("usuarioId", vigiladoId)
+          .where("usuarioId", nitVigilado)
           .where("placa", placa)
           .where("tipoId", tipoId)
           .update({ estado: false });
       }
+
       const mantenimiento = await TblMantenimiento.create(mantenimientoDTO);
 
       // Enviar datos al API externo de mantenimiento
