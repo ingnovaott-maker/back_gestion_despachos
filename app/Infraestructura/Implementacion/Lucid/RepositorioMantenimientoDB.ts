@@ -161,7 +161,7 @@ try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const datosMantenimiento = {
-          vigiladoId: parseInt(vigiladoId),
+          vigiladoId: parseInt(nitVigilado),
           placa,
           tipoId
         };
