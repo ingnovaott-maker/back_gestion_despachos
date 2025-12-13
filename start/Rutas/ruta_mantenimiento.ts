@@ -16,6 +16,14 @@ Route.group(() => {
   Route.post('guardar-correctivo', accion_path + '.guardarCorrectivo')
   Route.post('guardar-alistamiento', accion_path + '.guardarAlistamiento')
   Route.post('guardar-autorizacion', accion_path + '.guardarAutorizacion')
+  Route.post('bulk/preventivo', accion_path + '.cargaMasivaPreventivo')
+  Route.post('bulk/preventivo/xlsx', accion_path + '.cargaMasivaPreventivoExcel')
+  Route.post('bulk/correctivo', accion_path + '.cargaMasivaCorrectivo')
+  Route.post('bulk/correctivo/xlsx', accion_path + '.cargaMasivaCorrectivoExcel')
+  Route.post('bulk/alistamiento', accion_path + '.cargaMasivaAlistamiento')
+  Route.post('bulk/alistamiento/xlsx', accion_path + '.cargaMasivaAlistamientoExcel')
+  Route.post('bulk/autorizacion', accion_path + '.cargaMasivaAutorizacion')
+  Route.post('bulk/autorizacion/xlsx', accion_path + '.cargaMasivaAutorizacionExcel')
 }).prefix('api/v1/mantenimiento').middleware('autenticacionJwt')
 
 Route.group(() => {
@@ -30,6 +38,14 @@ Route.group(() => {
   Route.post('guardar-correctivo', accion_path + '.guardarCorrectivo')
   Route.post('guardar-alistamiento', accion_path + '.guardarAlistamiento')
   Route.post('guardar-autorizacion', accion_path + '.guardarAutorizacion')
+  Route.post('bulk/preventivo', accion_path + '.cargaMasivaPreventivo')
+  Route.post('bulk/preventivo/xlsx', accion_path + '.cargaMasivaPreventivoExcel')
+  Route.post('bulk/correctivo', accion_path + '.cargaMasivaCorrectivo')
+  Route.post('bulk/correctivo/xlsx', accion_path + '.cargaMasivaCorrectivoExcel')
+  Route.post('bulk/alistamiento', accion_path + '.cargaMasivaAlistamiento')
+  Route.post('bulk/alistamiento/xlsx', accion_path + '.cargaMasivaAlistamientoExcel')
+  Route.post('bulk/autorizacion', accion_path + '.cargaMasivaAutorizacion')
+  Route.post('bulk/autorizacion/xlsx', accion_path + '.cargaMasivaAutorizacionExcel')
 
 }).prefix('api/v2/mantenimiento').middleware('autenticacionVigia')
 

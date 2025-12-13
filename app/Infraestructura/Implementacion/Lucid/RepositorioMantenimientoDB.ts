@@ -17,6 +17,10 @@ import TblActividadesAlistamiento from "App/Infraestructura/Datos/Entidad/Activi
 import TblDetallesAlistamientoActividades from "App/Infraestructura/Datos/Entidad/DetallesAlistamientoActividades";
 import TblAutorizaciones from "App/Infraestructura/Datos/Entidad/Autorizaciones";
 import { TokenExterno } from "App/Dominio/Utilidades/TokenExterno";
+import TblMantenimientoJob, { TipoMantenimientoJob } from "App/Infraestructura/Datos/Entidad/MantenimientoJob";
+import { OpcionesSincronizacion } from "App/Dominio/Repositorios/RepositorioMantenimiento";
+
+export class MantenimientoPendienteError extends Error {}
 
 export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
@@ -35,6 +39,72 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
    */
   private getColombiaDateTime(): DateTime {
     return DateTime.fromJSDate(this.getColombiaDate());
+  }
+
+  private calcularSiguienteIntento(reintentos: number): DateTime {
+    const minutos = Math.min(60, Math.pow(2, Math.max(0, reintentos)) * 5);
+    return this.getColombiaDateTime().plus({ minutes: minutos });
+  }
+
+  private async crearJob(params: {
+    tipo: TipoMantenimientoJob
+    mantenimientoLocalId?: number | null
+    detalleId?: number | null
+    vigiladoId: string
+    usuario: string
+    rolId: number
+    payload?: Record<string, any> | null
+  }) {
+        const job = await TblMantenimientoJob.create({
+      tipo: params.tipo,
+      mantenimientoLocalId: params.mantenimientoLocalId ?? null,
+      detalleId: params.detalleId ?? null,
+      vigiladoId: params.vigiladoId,
+      usuarioDocumento: params.usuario,
+      rolId: params.rolId,
+      estado: 'pendiente',
+      reintentos: 0,
+      siguienteIntento: this.getColombiaDateTime(),
+      payload: params.payload ?? null,
+    })
+        return job;
+  }
+
+  private async validarTokenExterno() {
+    if (!TokenExterno.get() || !TokenExterno.isVigente()) {
+      throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+    }
+  }
+
+  private convertirErrorExterno(errorExterno: any, mensajePorDefecto: string): never {
+    console.error(mensajePorDefecto, errorExterno);
+    const exception = new Exception(
+      errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || mensajePorDefecto,
+      errorExterno.response?.status || 500
+    );
+    if (errorExterno.response?.data) {
+      (exception as any).responseData = errorExterno.response.data;
+    }
+    throw exception;
+  }
+
+  private async marcarMantenimientoProcesado(opciones: { mantenimientoLocalId?: number | null, mantenimientoIdExterno?: number | null }): Promise<void> {
+    if (!opciones.mantenimientoLocalId) {
+      return;
+    }
+
+    const mantenimiento = await TblMantenimiento.find(opciones.mantenimientoLocalId);
+    if (!mantenimiento) {
+      return;
+    }
+
+    const campos: Partial<{ procesado: boolean; mantenimientoId: number | null }> = { procesado: true };
+    if (opciones.mantenimientoIdExterno !== undefined && opciones.mantenimientoIdExterno !== null) {
+      campos.mantenimientoId = opciones.mantenimientoIdExterno;
+    }
+
+    mantenimiento.merge(campos);
+    await mantenimiento.save();
   }
 
   /**
@@ -127,12 +197,9 @@ try {
     }
   }
 
-  async guardarMantenimiento(datos: any, usuario: string, idRol: number, proveedorId?: string): Promise<any> {
+  async guardarMantenimiento(datos: any, usuario: string, idRol: number, proveedorId?: string, opciones?: OpcionesSincronizacion): Promise<any> {
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const asyncMode = opciones?.diferido === true;
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -141,10 +208,12 @@ try {
       const fechaCreacion = this.getColombiaDateTime();
       const mantenimientoDTO = {
         placa,
-        usuarioId: vigiladoId,
+        usuarioId,
         tipoId,
         createdAt: fechaCreacion,
         fechaDiligenciamiento: fechaCreacion,
+        procesado: false,
+        mantenimientoId: null,
       };
       if (tipoId != 4) {
         await TblMantenimiento.query()
@@ -154,6 +223,30 @@ try {
           .update({ estado: false });
       }
       const mantenimiento = await TblMantenimiento.create(mantenimientoDTO);
+
+      if (asyncMode) {
+        const job = await this.crearJob({
+          tipo: 'base',
+          mantenimientoLocalId: mantenimiento.id ?? null,
+          detalleId: null,
+          vigiladoId: String(vigiladoId ?? nitVigilado ?? ''),
+          usuario,
+          rolId: idRol,
+          payload: {
+            vigiladoId,
+            placa,
+            tipoId,
+          },
+        });
+
+        return {
+          mensaje: 'Mantenimiento programado para sincronización',
+          mantenimientoLocalId: mantenimiento.id,
+          jobId: job.id,
+        };
+      }
+
+      await this.validarTokenExterno();
 
       // Enviar datos al API externo de mantenimiento
       try {
@@ -180,28 +273,18 @@ try {
         // Si la respuesta es exitosa (200 o 201), actualizar el campo procesado y guardar el ID en mantenimientoId
         if ((respuestaMantenimiento.status === 200 || respuestaMantenimiento.status === 201) && mantenimiento.id) {
           const mantenimientoIdExterno = respuestaMantenimiento.data?.id || respuestaMantenimiento.data?.data?.id;
-          await TblMantenimiento.query()
-            .where("id", mantenimiento.id)
-            .update({
-              procesado: true,
-              mantenimientoId: mantenimientoIdExterno
-            });
+          await this.marcarMantenimientoProcesado({
+            mantenimientoLocalId: mantenimiento.id,
+            mantenimientoIdExterno: mantenimientoIdExterno ?? null
+          });
+          mantenimiento.mantenimientoId = mantenimientoIdExterno ?? null;
+          mantenimiento.procesado = true;
         }
 
         // Retornar la respuesta del API externo
         return respuestaMantenimiento.data;
       } catch (errorExterno: any) {
-        console.error("Error al enviar datos al API externo de mantenimiento:", errorExterno);
-        // Crear excepción con la respuesta completa del API externo si existe
-        const exception = new Exception(
-          errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de mantenimiento",
-          errorExterno.response?.status || 500
-        );
-        // Agregar los datos completos del API externo a la excepción
-        if (errorExterno.response?.data) {
-          (exception as any).responseData = errorExterno.response.data;
-        }
-        throw exception;
+        this.convertirErrorExterno(errorExterno, "Error al comunicarse con el servicio externo de mantenimiento");
       }
     } catch (error: any) {
       console.log(error);
@@ -213,7 +296,7 @@ try {
     }
   }
 
-  async guardarPreventivo(datos: any, usuario: string, idRol: number): Promise<any> {
+  async guardarPreventivo(datos: any, usuario: string, idRol: number, opciones?: OpcionesSincronizacion): Promise<any> {
     const {
       placa,
       fecha,
@@ -227,9 +310,9 @@ try {
       detalleActividades,
     } = datos;
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+      const asyncMode = opciones?.diferido === true;
+      if (!asyncMode) {
+        await this.validarTokenExterno();
       }
 
       // Obtener datos de autenticación según el rol
@@ -250,6 +333,41 @@ try {
         procesado: false
       };
       const preventivo = await TblPreventivo.create(preventivoDTO);
+
+      if (asyncMode) {
+        const mantenimientoLocal = await TblMantenimiento.find(mantenimientoId);
+
+        if (!mantenimientoLocal) {
+          throw new Exception('Mantenimiento local no encontrado para programar preventivo', 404);
+        }
+
+        const job = await this.crearJob({
+          tipo: 'preventivo',
+          mantenimientoLocalId: mantenimientoLocal.id ?? null,
+          detalleId: preventivo.id ?? null,
+          vigiladoId: String(mantenimientoLocal.usuarioId ?? nitVigilado ?? ''),
+          usuario,
+          rolId: idRol,
+          payload: {
+            placa,
+            fecha,
+            hora,
+            nit,
+            razonSocial,
+            tipoIdentificacion,
+            numeroIdentificacion,
+            nombresResponsable,
+            detalleActividades,
+          }
+        });
+
+        return {
+          mensaje: 'Preventivo programado para sincronización',
+          preventivoId: preventivo.id,
+          mantenimientoLocalId: mantenimientoLocal.id,
+          jobId: job.id,
+        };
+      }
 
       // 2. Enviar datos al API externo de mantenimiento preventivo
       try {
@@ -289,22 +407,16 @@ try {
               procesado: true,
               mantenimientoId: mantenimientoIdExterno || mantenimientoId
             });
+          await this.marcarMantenimientoProcesado({
+            mantenimientoLocalId: Number(mantenimientoId),
+            mantenimientoIdExterno: mantenimientoIdExterno ?? null
+          });
         }
 
         // Retornar la respuesta del API externo
         return respuestaPreventivo.data;
       } catch (errorExterno: any) {
-        console.error("Error al enviar datos al API externo de mantenimiento preventivo:", errorExterno);
-        // Crear excepción con la respuesta completa del API externo si existe
-        const exception = new Exception(
-          errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de mantenimiento preventivo",
-          errorExterno.response?.status || 500
-        );
-        // Agregar los datos completos del API externo a la excepción
-        if (errorExterno.response?.data) {
-          (exception as any).responseData = errorExterno.response.data;
-        }
-        throw exception;
+        this.convertirErrorExterno(errorExterno, "Error al comunicarse con el servicio externo de mantenimiento preventivo");
       }
     } catch (error: any) {
       console.log(error);
@@ -316,7 +428,7 @@ try {
     }
   }
 
-  async guardarCorrectivo(datos: any, usuario: string, idRol: number): Promise<any> {
+  async guardarCorrectivo(datos: any, usuario: string, idRol: number, opciones?: OpcionesSincronizacion): Promise<any> {
     const {
       placa,
       fecha,
@@ -330,9 +442,9 @@ try {
       detalleActividades,
     } = datos;
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+      const asyncMode = opciones?.diferido === true;
+      if (!asyncMode) {
+        await this.validarTokenExterno();
       }
 
       // Obtener datos de autenticación según el rol
@@ -353,6 +465,41 @@ try {
         procesado: false
       };
       const correctivo = await TblCorrectivo.create(correctivoDTO);
+
+      if (asyncMode) {
+        const mantenimientoLocal = await TblMantenimiento.find(mantenimientoId);
+
+        if (!mantenimientoLocal) {
+          throw new Exception('Mantenimiento local no encontrado para programar correctivo', 404);
+        }
+
+        const job = await this.crearJob({
+          tipo: 'correctivo',
+          mantenimientoLocalId: mantenimientoLocal.id ?? null,
+          detalleId: correctivo.id ?? null,
+          vigiladoId: String(mantenimientoLocal.usuarioId ?? nitVigilado ?? ''),
+          usuario,
+          rolId: idRol,
+          payload: {
+            placa,
+            fecha,
+            hora,
+            nit,
+            razonSocial,
+            tipoIdentificacion,
+            numeroIdentificacion,
+            nombresResponsable,
+            detalleActividades,
+          }
+        });
+
+        return {
+          mensaje: 'Correctivo programado para sincronización',
+          correctivoId: correctivo.id,
+          mantenimientoLocalId: mantenimientoLocal.id,
+          jobId: job.id,
+        };
+      }
 
       // 2. Enviar datos al API externo de mantenimiento correctivo
       try {
@@ -392,22 +539,16 @@ try {
               procesado: true,
               mantenimientoId: mantenimientoIdExterno || mantenimientoId
             });
+          await this.marcarMantenimientoProcesado({
+            mantenimientoLocalId: Number(mantenimientoId),
+            mantenimientoIdExterno: mantenimientoIdExterno ?? null
+          });
         }
 
         // Retornar la respuesta del API externo
         return respuestaCorrectivo.data;
       } catch (errorExterno: any) {
-        console.error("Error al enviar datos al API externo de mantenimiento correctivo:", errorExterno);
-        // Crear excepción con la respuesta completa del API externo si existe
-        const exception = new Exception(
-          errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de mantenimiento correctivo",
-          errorExterno.response?.status || 500
-        );
-        // Agregar los datos completos del API externo a la excepción
-        if (errorExterno.response?.data) {
-          (exception as any).responseData = errorExterno.response.data;
-        }
-        throw exception;
+        this.convertirErrorExterno(errorExterno, "Error al comunicarse con el servicio externo de mantenimiento correctivo");
       }
     } catch (error: any) {
       console.log(error);
@@ -419,7 +560,7 @@ try {
     }
   }
 
-  async guardarAlistamiento(datos: any, usuario: string, idRol: number): Promise<any> {
+  async guardarAlistamiento(datos: any, usuario: string, idRol: number, opciones?: OpcionesSincronizacion): Promise<any> {
     const {
       placa,
       tipoIdentificacionResponsable,
@@ -433,9 +574,9 @@ try {
       actividades,
     } = datos;
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+      const asyncMode = opciones?.diferido === true;
+      if (!asyncMode) {
+        await this.validarTokenExterno();
       }
 
       // Obtener datos de autenticación según el rol
@@ -466,6 +607,41 @@ try {
             }
           });
         }
+      }
+
+      if (asyncMode) {
+        const mantenimientoLocal = await TblMantenimiento.find(mantenimientoId);
+
+        if (!mantenimientoLocal) {
+          throw new Exception('Mantenimiento local no encontrado para programar alistamiento', 404);
+        }
+
+        const job = await this.crearJob({
+          tipo: 'alistamiento',
+          mantenimientoLocalId: mantenimientoLocal.id ?? null,
+          detalleId: alistamiento.id ?? null,
+          vigiladoId: String(mantenimientoLocal.usuarioId ?? nitVigilado ?? ''),
+          usuario,
+          rolId: idRol,
+          payload: {
+            placa,
+            tipoIdentificacionResponsable,
+            numeroIdentificacionResponsable,
+            nombreResponsable,
+            tipoIdentificacionConductor,
+            numeroIdentificacionConductor,
+            nombresConductor,
+            detalleActividades,
+            actividades,
+          }
+        });
+
+        return {
+          mensaje: 'Alistamiento programado para sincronización',
+          alistamientoId: alistamiento.id,
+          mantenimientoLocalId: mantenimientoLocal.id,
+          jobId: job.id,
+        };
       }
 
       // 2. Enviar datos al API externo de alistamiento
@@ -505,22 +681,16 @@ try {
               procesado: true,
               mantenimientoId: mantenimientoIdExterno || mantenimientoId
             });
+          await this.marcarMantenimientoProcesado({
+            mantenimientoLocalId: Number(mantenimientoId),
+            mantenimientoIdExterno: mantenimientoIdExterno ?? null
+          });
         }
 
         // Retornar la respuesta del API externo
         return respuestaAlistamiento.data;
       } catch (errorExterno: any) {
-        console.error("Error al enviar datos al API externo de alistamiento:", errorExterno);
-        // Crear excepción con la respuesta completa del API externo si existe
-        const exception = new Exception(
-          errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de alistamiento",
-          errorExterno.response?.status || 500
-        );
-        // Agregar los datos completos del API externo a la excepción
-        if (errorExterno.response?.data) {
-          (exception as any).responseData = errorExterno.response.data;
-        }
-        throw exception;
+        this.convertirErrorExterno(errorExterno, "Error al comunicarse con el servicio externo de alistamiento");
       }
     } catch (error: any) {
       console.log(error);
@@ -532,12 +702,12 @@ try {
     }
   }
 
-  async guardarAutorizacion(datos: any, usuario: string, idRol: number): Promise<any> {
+  async guardarAutorizacion(datos: any, usuario: string, idRol: number, opciones?: OpcionesSincronizacion): Promise<any> {
     const { mantenimientoId } = datos;
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+      const asyncMode = opciones?.diferido === true;
+      if (!asyncMode) {
+        await this.validarTokenExterno();
       }
 
       // Obtener datos de autenticación según el rol
@@ -591,6 +761,31 @@ try {
       };
       const autorizacion = await TblAutorizaciones.create(autorizacionDTO);
 
+      if (asyncMode) {
+        const mantenimientoLocal = await TblMantenimiento.find(mantenimientoId);
+
+        if (!mantenimientoLocal) {
+          throw new Exception('Mantenimiento local no encontrado para programar autorización', 404);
+        }
+
+        const job = await this.crearJob({
+          tipo: 'autorizacion',
+          mantenimientoLocalId: mantenimientoLocal.id ?? null,
+          detalleId: autorizacion.id ?? null,
+          vigiladoId: String(mantenimientoLocal.usuarioId ?? nitVigilado ?? ''),
+          usuario,
+          rolId: idRol,
+          payload: datos,
+        });
+
+        return {
+          mensaje: 'Autorización programada para sincronización',
+          autorizacionId: autorizacion.id,
+          mantenimientoLocalId: mantenimientoLocal.id,
+          jobId: job.id,
+        };
+      }
+
       // 2. Enviar datos al API externo de autorización
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -612,29 +807,20 @@ try {
         if ((respuestaAutorizacion.status === 200 || respuestaAutorizacion.status === 201) && mantenimientoId && autorizacion.id) {
           const mantenimientoIdExterno = respuestaAutorizacion.data?.mantenimiento_id || respuestaAutorizacion.data?.mantenimientoId || respuestaAutorizacion.data?.data?.mantenimientoId;
 
-          await TblMantenimiento.query()
-            .where("id", mantenimientoId)
-            .update({ procesado: true });
-
           await TblAutorizaciones.query()
             .where("id", autorizacion.id)
             .update({ mantenimientoId: mantenimientoIdExterno || mantenimientoId });
+
+          await this.marcarMantenimientoProcesado({
+            mantenimientoLocalId: Number(mantenimientoId),
+            mantenimientoIdExterno: mantenimientoIdExterno ?? null
+          });
         }
 
         // Retornar la respuesta del API externo
         return respuestaAutorizacion.data;
       } catch (errorExterno: any) {
-        console.error("Error al enviar datos al API externo de autorización:", errorExterno);
-        // Crear excepción con la respuesta completa del API externo si existe
-        const exception = new Exception(
-          errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de autorización",
-          errorExterno.response?.status || 500
-        );
-        // Agregar los datos completos del API externo a la excepción
-        if (errorExterno.response?.data) {
-          (exception as any).responseData = errorExterno.response.data;
-        }
-        throw exception;
+        this.convertirErrorExterno(errorExterno, "Error al comunicarse con el servicio externo de autorización");
       }
     } catch (error: any) {
       console.log(error);
@@ -643,6 +829,342 @@ try {
         throw error;
       }
       throw new Error("No se pudo guardar la autorizacion");
+    }
+  }
+
+  public async procesarJob(job: TblMantenimientoJob): Promise<void> {
+    switch (job.tipo) {
+      case 'base':
+        await this.procesarJobMantenimientoBase(job);
+        break;
+      case 'preventivo':
+        await this.procesarJobPreventivo(job);
+        break;
+      case 'correctivo':
+        await this.procesarJobCorrectivo(job);
+        break;
+      case 'alistamiento':
+        await this.procesarJobAlistamiento(job);
+        break;
+      case 'autorizacion':
+        await this.procesarJobAutorizacion(job);
+        break;
+      default:
+        throw new Exception(`Tipo de trabajo no soportado: ${job.tipo}`, 400);
+    }
+  }
+
+  private async procesarJobMantenimientoBase(job: TblMantenimientoJob): Promise<void> {
+    if (!job.mantenimientoLocalId) {
+      throw new Exception('El trabajo no referencia un mantenimiento local válido', 400);
+    }
+
+    const mantenimiento = await TblMantenimiento.find(job.mantenimientoLocalId);
+
+    if (!mantenimiento) {
+      throw new Exception('Mantenimiento local no encontrado', 404);
+    }
+
+    const payload = job.payload || {};
+    const vigiladoId = payload.vigiladoId ?? mantenimiento.usuarioId;
+    const placa = payload.placa ?? mantenimiento.placa;
+    const tipoId = payload.tipoId ?? mantenimiento.tipoId;
+
+    await this.validarTokenExterno();
+
+    const { tokenAutorizacion } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
+    const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+
+    const vigiladoIdNormalizado = Number(vigiladoId);
+
+    const datosMantenimiento = {
+      vigiladoId: Number.isNaN(vigiladoIdNormalizado) ? vigiladoId : vigiladoIdNormalizado,
+      placa,
+      tipoId
+    };
+
+    try {
+      const respuesta = await axios.post(
+        `${urlMantenimientos}/mantenimiento/guardar-mantenimieto`,
+        datosMantenimiento,
+        {
+          headers: {
+            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'token': tokenAutorizacion,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if ((respuesta.status === 200 || respuesta.status === 201) && mantenimiento.id) {
+        const mantenimientoIdExterno = respuesta.data?.id || respuesta.data?.data?.id;
+        await this.marcarMantenimientoProcesado({
+          mantenimientoLocalId: mantenimiento.id,
+          mantenimientoIdExterno: mantenimientoIdExterno ?? null
+        });
+      }
+    } catch (errorExterno: any) {
+      this.convertirErrorExterno(errorExterno, 'Error al comunicarse con el servicio externo de mantenimiento');
+    }
+  }
+
+  private async procesarJobPreventivo(job: TblMantenimientoJob): Promise<void> {
+    if (!job.detalleId) {
+      throw new Exception('El trabajo de preventivo no contiene detalle asociado', 400);
+    }
+
+    const preventivo = await TblPreventivo.find(job.detalleId);
+
+    if (!preventivo) {
+      throw new Exception('Registro preventivo no encontrado', 404);
+    }
+
+    const mantenimiento = await TblMantenimiento.find(job.mantenimientoLocalId ?? preventivo.mantenimientoId);
+
+    if (!mantenimiento) {
+      throw new Exception('Mantenimiento local asociado no encontrado', 404);
+    }
+
+    if (!mantenimiento.mantenimientoId) {
+      throw new MantenimientoPendienteError('El mantenimiento base aún no ha sido sincronizado');
+    }
+
+    await this.validarTokenExterno();
+
+    const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
+    const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+
+    const datosPreventivo = {
+      fecha: preventivo.fecha,
+      hora: preventivo.hora,
+      nit: preventivo.nit,
+      razonSocial: preventivo.razonSocial,
+      tipoIdentificacion: preventivo.tipoIdentificacion,
+      numeroIdentificacion: preventivo.numeroIdentificacion,
+      nombresResponsable: preventivo.nombresResponsable,
+      mantenimientoId: mantenimiento.mantenimientoId,
+      detalleActividades: preventivo.detalleActividades
+    };
+
+    try {
+      const respuesta = await axios.post(
+        `${urlMantenimientos}/mantenimiento/guardar-preventivo`,
+        datosPreventivo,
+        {
+          headers: {
+            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'token': tokenAutorizacion,
+            'vigiladoId': nitVigilado,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if ((respuesta.status === 200 || respuesta.status === 201) && preventivo.id) {
+        const mantenimientoIdExterno = respuesta.data?.mantenimiento_id || respuesta.data?.mantenimientoId || respuesta.data?.data?.mantenimientoId || mantenimiento.mantenimientoId;
+        await TblPreventivo.query()
+          .where('id', preventivo.id)
+          .update({
+            procesado: true,
+            mantenimientoId: mantenimientoIdExterno
+          });
+      }
+    } catch (errorExterno: any) {
+      this.convertirErrorExterno(errorExterno, 'Error al comunicarse con el servicio externo de mantenimiento preventivo');
+    }
+  }
+
+  private async procesarJobCorrectivo(job: TblMantenimientoJob): Promise<void> {
+    if (!job.detalleId) {
+      throw new Exception('El trabajo de correctivo no contiene detalle asociado', 400);
+    }
+
+    const correctivo = await TblCorrectivo.find(job.detalleId);
+
+    if (!correctivo) {
+      throw new Exception('Registro correctivo no encontrado', 404);
+    }
+
+    const mantenimiento = await TblMantenimiento.find(job.mantenimientoLocalId ?? correctivo.mantenimientoId);
+
+    if (!mantenimiento) {
+      throw new Exception('Mantenimiento local asociado no encontrado', 404);
+    }
+
+    if (!mantenimiento.mantenimientoId) {
+      throw new MantenimientoPendienteError('El mantenimiento base aún no ha sido sincronizado');
+    }
+
+    await this.validarTokenExterno();
+
+    const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
+    const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+
+    const datosCorrectivo = {
+      fecha: correctivo.fecha,
+      hora: correctivo.hora,
+      nit: correctivo.nit,
+      razonSocial: correctivo.razonSocial,
+      tipoIdentificacion: correctivo.tipoIdentificacion,
+      numeroIdentificacion: correctivo.numeroIdentificacion,
+      nombresResponsable: correctivo.nombresResponsable,
+      mantenimientoId: mantenimiento.mantenimientoId,
+      detalleActividades: correctivo.detalleActividades
+    };
+
+    try {
+      const respuesta = await axios.post(
+        `${urlMantenimientos}/mantenimiento/guardar-correctivo`,
+        datosCorrectivo,
+        {
+          headers: {
+            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'token': tokenAutorizacion,
+            'vigiladoId': nitVigilado,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if ((respuesta.status === 200 || respuesta.status === 201) && correctivo.id) {
+        const mantenimientoIdExterno = respuesta.data?.mantenimiento_id || respuesta.data?.mantenimientoId || respuesta.data?.data?.mantenimientoId || mantenimiento.mantenimientoId;
+        await TblCorrectivo.query()
+          .where('id', correctivo.id)
+          .update({
+            procesado: true,
+            mantenimientoId: mantenimientoIdExterno
+          });
+      }
+    } catch (errorExterno: any) {
+      this.convertirErrorExterno(errorExterno, 'Error al comunicarse con el servicio externo de mantenimiento correctivo');
+    }
+  }
+
+  private async procesarJobAlistamiento(job: TblMantenimientoJob): Promise<void> {
+    if (!job.detalleId) {
+      throw new Exception('El trabajo de alistamiento no contiene detalle asociado', 400);
+    }
+
+    const alistamiento = await TblAlistamiento.find(job.detalleId);
+
+    if (!alistamiento) {
+      throw new Exception('Registro de alistamiento no encontrado', 404);
+    }
+
+    const mantenimiento = await TblMantenimiento.find(job.mantenimientoLocalId ?? alistamiento.mantenimientoId);
+
+    if (!mantenimiento) {
+      throw new Exception('Mantenimiento local asociado no encontrado', 404);
+    }
+
+    if (!mantenimiento.mantenimientoId) {
+      throw new MantenimientoPendienteError('El mantenimiento base aún no ha sido sincronizado');
+    }
+
+    await this.validarTokenExterno();
+
+    const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
+    const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+
+    const actividadesRelacionadas = await TblDetallesAlistamientoActividades.query()
+      .where('tda_alistamiento_id', alistamiento.id ?? 0);
+
+    const actividades = actividadesRelacionadas.map((actividad) => ({
+      id: actividad.actividadId,
+      estado: actividad.estado
+    }));
+
+    const datosAlistamiento = {
+      tipoIdentificacionResponsable: alistamiento.tipoIdentificacionResponsable,
+      numeroIdentificacionResponsable: alistamiento.numeroIdentificacionResponsable,
+      nombreResponsable: alistamiento.nombreResponsable,
+      tipoIdentificacionConductor: alistamiento.tipoIdentificacionConductor,
+      numeroIdentificacionConductor: alistamiento.numeroIdentificacionConductor,
+      nombresConductor: alistamiento.nombresConductor,
+      mantenimientoId: mantenimiento.mantenimientoId,
+      detalleActividades: alistamiento.detalleActividades,
+      actividades,
+    };
+
+    try {
+      const respuesta = await axios.post(
+        `${urlMantenimientos}/mantenimiento/guardar-alistamiento`,
+        datosAlistamiento,
+        {
+          headers: {
+            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'token': tokenAutorizacion,
+            'vigiladoId': nitVigilado
+          }
+        }
+      );
+
+      if ((respuesta.status === 200 || respuesta.status === 201) && alistamiento.id) {
+        const mantenimientoIdExterno = respuesta.data?.mantenimiento_id || respuesta.data?.mantenimientoId || respuesta.data?.data?.mantenimientoId || mantenimiento.mantenimientoId;
+        await TblAlistamiento.query()
+          .where('id', alistamiento.id)
+          .update({
+            procesado: true,
+            mantenimientoId: mantenimientoIdExterno
+          });
+      }
+    } catch (errorExterno: any) {
+      this.convertirErrorExterno(errorExterno, 'Error al comunicarse con el servicio externo de alistamiento');
+    }
+  }
+
+  private async procesarJobAutorizacion(job: TblMantenimientoJob): Promise<void> {
+    if (!job.detalleId) {
+      throw new Exception('El trabajo de autorización no contiene detalle asociado', 400);
+    }
+
+    const autorizacion = await TblAutorizaciones.find(job.detalleId);
+
+    if (!autorizacion) {
+      throw new Exception('Registro de autorización no encontrado', 404);
+    }
+
+    const mantenimiento = await TblMantenimiento.find(job.mantenimientoLocalId ?? autorizacion.mantenimientoId);
+
+    if (!mantenimiento) {
+      throw new Exception('Mantenimiento local asociado no encontrado', 404);
+    }
+
+    await this.validarTokenExterno();
+
+    const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
+    const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+
+    const datosAutorizacion = job.payload ?? autorizacion.toJSON();
+    datosAutorizacion.mantenimientoId = mantenimiento.mantenimientoId ?? mantenimiento.id;
+
+    try {
+      const respuesta = await axios.post(
+        `${urlMantenimientos}/mantenimiento/guardar-autorizacion`,
+        datosAutorizacion,
+        {
+          headers: {
+            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'token': tokenAutorizacion,
+            'vigiladoId': nitVigilado,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if ((respuesta.status === 200 || respuesta.status === 201) && autorizacion.id) {
+        const mantenimientoIdExterno = respuesta.data?.mantenimiento_id || respuesta.data?.mantenimientoId || respuesta.data?.data?.mantenimientoId || mantenimiento.mantenimientoId;
+
+        await TblMantenimiento.query()
+          .where('id', mantenimiento.id ?? 0)
+          .update({ procesado: true, mantenimientoId: mantenimientoIdExterno });
+
+        await TblAutorizaciones.query()
+          .where('id', autorizacion.id)
+          .update({ mantenimientoId: mantenimientoIdExterno });
+      }
+    } catch (errorExterno: any) {
+      this.convertirErrorExterno(errorExterno, 'Error al comunicarse con el servicio externo de autorización');
     }
   }
 

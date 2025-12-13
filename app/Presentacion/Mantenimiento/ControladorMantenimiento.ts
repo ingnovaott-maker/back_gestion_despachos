@@ -1,4 +1,5 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
+import type { MultipartFileContract } from '@ioc:Adonis/Core/BodyParser'
 import { ServicioMantenimeinto } from 'App/Dominio/Datos/Servicios/ServicioMantenimiento';
 import TblArchivoPrograma from 'App/Infraestructura/Datos/Entidad/ArchivoPrograma';
 import TblMantenimiento from 'App/Infraestructura/Datos/Entidad/Mantenimiento';
@@ -8,6 +9,8 @@ import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
 import { ServicioExportacion } from 'App/Dominio/Datos/Servicios/ServicioExportacion';
 import { guardarLogError } from 'App/Dominio/guardarLogError';
+import ExcelJS from 'exceljs';
+import { DateTime } from 'luxon';
 
 
 export default class ControladorMantenimiento {
@@ -43,6 +46,186 @@ export default class ControladorMantenimiento {
 
     // Error genérico del servidor
     return response.status(500).send({ mensaje: 'Error interno del servidor' })
+  }
+
+  private async leerRegistrosDesdeExcel(archivo: MultipartFileContract): Promise<any[]> {
+    const workbook = new ExcelJS.Workbook();
+    if (archivo.tmpPath) {
+      await workbook.xlsx.readFile(archivo.tmpPath);
+    } else {
+      const buffer = await archivo.toBuffer();
+      await workbook.xlsx.load(buffer);
+    }
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      return [];
+    }
+
+    const headerRow = worksheet.getRow(1);
+    const headers = (headerRow.values || [])
+      .map((valor) => (typeof valor === 'string' ? valor.trim() : valor))
+      .map((valor) => (typeof valor === 'number' ? String(valor) : valor))
+      .filter((valor) => valor);
+
+    const registros: any[] = [];
+
+    worksheet.eachRow((fila, numeroFila) => {
+      if (numeroFila === 1) {
+        return;
+      }
+
+      const registro: Record<string, any> = {};
+      headers.forEach((encabezado, index) => {
+        const columna = index + 1;
+        const celda = fila.getCell(columna);
+        if (!encabezado) {
+          return;
+        }
+
+        const clave = String(encabezado).trim();
+        registro[clave] = this.normalizarValorExcel(clave, celda);
+      });
+
+      const tieneDatos = Object.values(registro).some((valor) => valor !== null && valor !== undefined && String(valor).trim() !== '');
+      if (tieneDatos) {
+        registros.push(registro);
+      }
+    });
+
+    return registros;
+  }
+
+  private normalizarValorExcel(clave: string, celda: ExcelJS.Cell): any {
+    const llave = clave.toLowerCase();
+    const valor = celda.value ?? (celda.text || '').trim();
+
+    if (llave === 'fecha') {
+      return this.normalizarFechaExcel(valor);
+    }
+
+    if (llave === 'hora') {
+      return this.normalizarHoraExcel(valor);
+    }
+
+    if (valor instanceof Date) {
+      return DateTime.fromJSDate(valor).toISO();
+    }
+
+    if (typeof valor === 'string') {
+      const limpio = valor.trim();
+      if (limpio === '') {
+        return null;
+      }
+      return limpio;
+    }
+
+    if (typeof valor === 'number') {
+      const texto = (celda.text || '').trim();
+      if (texto !== '') {
+        return texto;
+      }
+      return valor;
+    }
+
+    if (valor && typeof valor === 'object' && 'text' in valor) {
+      const texto = String((valor as any).text).trim();
+      return texto === '' ? null : texto;
+    }
+
+    const texto = (celda.text || '').trim();
+    return texto === '' ? null : texto;
+  }
+
+  private normalizarFechaExcel(valor: any): string | null {
+    if (valor instanceof Date) {
+      return DateTime.fromJSDate(valor).toISODate();
+    }
+
+    if (typeof valor === 'number') {
+      const jsDate = new Date(Math.round((valor - 25569) * 86400 * 1000));
+      return DateTime.fromJSDate(jsDate).toISODate();
+    }
+
+    if (typeof valor === 'string') {
+      const limpio = valor.trim();
+      if (limpio === '') {
+        return null;
+      }
+
+      const candidatos = [
+        DateTime.fromISO(limpio),
+        DateTime.fromFormat(limpio, 'dd/MM/yyyy'),
+        DateTime.fromFormat(limpio, 'MM/dd/yyyy'),
+        DateTime.fromFormat(limpio, 'dd-MM-yyyy'),
+        DateTime.fromFormat(limpio, 'MM-dd-yyyy'),
+        DateTime.fromRFC2822(limpio),
+      ];
+
+      for (const candidato of candidatos) {
+        if (candidato.isValid) {
+          return candidato.toISODate();
+        }
+      }
+
+      const desdeJS = DateTime.fromJSDate(new Date(limpio));
+      if (desdeJS.isValid) {
+        return desdeJS.toISODate();
+      }
+
+      return limpio;
+    }
+
+    return null;
+  }
+
+  private normalizarHoraExcel(valor: any): string | null {
+    if (valor instanceof Date) {
+      return DateTime.fromJSDate(valor).toFormat('HH:mm');
+    }
+
+    if (typeof valor === 'number') {
+      const totalSegundos = Math.round(valor * 24 * 60 * 60);
+      const horas = Math.floor(totalSegundos / 3600) % 24;
+      const minutos = Math.floor((totalSegundos % 3600) / 60);
+      return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+    }
+
+    if (typeof valor === 'string') {
+      const limpio = valor.trim();
+      if (limpio === '') {
+        return null;
+      }
+
+      const candidatos = [
+        DateTime.fromISO(limpio),
+        DateTime.fromFormat(limpio, 'HH:mm'),
+        DateTime.fromFormat(limpio, 'H:mm'),
+        DateTime.fromFormat(limpio, 'HH:mm:ss'),
+        DateTime.fromFormat(limpio, 'H:mm:ss'),
+        DateTime.fromFormat(limpio, 'hh:mm a'),
+        DateTime.fromFormat(limpio, 'h:mm a'),
+        DateTime.fromFormat(limpio, 'hh:mm:ss a'),
+        DateTime.fromFormat(limpio, 'h:mm:ss a'),
+      ];
+
+      for (const candidato of candidatos) {
+        if (candidato.isValid) {
+          return candidato.toFormat('HH:mm');
+        }
+      }
+
+      if (limpio.toLowerCase().includes('gmt') || limpio.toLowerCase().includes('utc')) {
+        const desdeJS = DateTime.fromJSDate(new Date(limpio));
+        if (desdeJS.isValid) {
+          return desdeJS.toFormat('HH:mm');
+        }
+      }
+
+      return limpio;
+    }
+
+    return null;
   }
   public async listarPlacas ({ request, response }:HttpContextContract) {
     try {
@@ -394,6 +577,198 @@ export default class ControladorMantenimiento {
       const { documento } = await request.obtenerPayloadJWT()
       await guardarLogError(error, documento??'', 'exportarAXLSX')
       return this.manejarError(error, response)
+    }
+  }
+
+  public async cargaMasivaPreventivo({ request, response }: HttpContextContract) {
+    try {
+      const registros = request.input('registros');
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarPreventivoMasivo(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaPreventivo');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaPreventivoExcel({ request, response }: HttpContextContract) {
+    try {
+      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      if (!archivo) {
+        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+      }
+      if (!archivo.isValid) {
+        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+      }
+
+      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarPreventivoMasivo(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaPreventivoExcel');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaCorrectivo({ request, response }: HttpContextContract) {
+    try {
+      const registros = request.input('registros');
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarCorrectivoMasivo(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaCorrectivo');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaCorrectivoExcel({ request, response }: HttpContextContract) {
+    try {
+      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      if (!archivo) {
+        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+      }
+      if (!archivo.isValid) {
+        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+      }
+
+      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarCorrectivoMasivo(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaCorrectivoExcel');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaAlistamiento({ request, response }: HttpContextContract) {
+    try {
+      const registros = request.input('registros');
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarAlistamientoMasivo(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaAlistamiento');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaAlistamientoExcel({ request, response }: HttpContextContract) {
+    try {
+      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      if (!archivo) {
+        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+      }
+      if (!archivo.isValid) {
+        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+      }
+
+      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarAlistamientoMasivo(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaAlistamientoExcel');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaAutorizacion({ request, response }: HttpContextContract) {
+    try {
+      const registros = request.input('registros');
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarAutorizacionMasiva(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaAutorizacion');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async cargaMasivaAutorizacionExcel({ request, response }: HttpContextContract) {
+    try {
+      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      if (!archivo) {
+        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+      }
+      if (!archivo.isValid) {
+        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+      }
+
+      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+      }
+
+      const payload = await request.obtenerPayloadJWT();
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+
+      const resumen = await this.servicioMantenimiento.guardarAutorizacionMasiva(registros, usuario, idRol);
+      return response.status(202).json(resumen);
+    } catch (error: any) {
+      const { documento } = await request.obtenerPayloadJWT();
+      await guardarLogError(error, documento ?? '', 'cargaMasivaAutorizacionExcel');
+      return this.manejarError(error, response);
     }
   }
 
