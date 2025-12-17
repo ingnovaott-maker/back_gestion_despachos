@@ -520,7 +520,10 @@ export default class ControladorMantenimiento {
   public async listarHistorial ({ request, response }:HttpContextContract) {
     try {
       const { tipoId, vigiladoId, placa } = request.all();
-      const historial = await this.servicioMantenimiento.listarHistorial(tipoId, vigiladoId, placa)
+       const payload = await request.obtenerPayloadJWT()
+      const usuario = payload.documento;
+      const idRol = payload.idRol;
+      const historial = await this.servicioMantenimiento.listarHistorial(tipoId, vigiladoId, placa, idRol)
       return historial
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT()

@@ -110,9 +110,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   /**
    * Obtiene los datos de autenticación según el rol del usuario
    */
-  private async obtenerDatosAutenticacion(usuario: string, idRol: number): Promise<{tokenAutorizacion: string, nitVigilado: string, usuarioId: number}> {
+  private async obtenerDatosAutenticacion(usuario: string, idRol: number): Promise<{tokenAutorizacion: string, nitVigilado: any, usuarioId: number}> {
     let tokenAutorizacion = '';
-    let nitVigilado = '';
+    let nitVigilado;
     let usuarioId = 0;
 
     const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
@@ -208,7 +208,7 @@ try {
       const fechaCreacion = this.getColombiaDateTime();
       const mantenimientoDTO = {
         placa,
-        usuarioId,
+        usuarioId: nitVigilado,
         tipoId,
         createdAt: fechaCreacion,
         fechaDiligenciamiento: fechaCreacion,
@@ -217,11 +217,12 @@ try {
       };
       if (tipoId != 4) {
         await TblMantenimiento.query()
-          .where("usuarioId", vigiladoId)
+          .where("usuarioId", nitVigilado)
           .where("placa", placa)
           .where("tipoId", tipoId)
           .update({ estado: false });
       }
+
       const mantenimiento = await TblMantenimiento.create(mantenimientoDTO);
 
       if (asyncMode) {
@@ -253,7 +254,7 @@ try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const datosMantenimiento = {
-          vigiladoId: parseInt(vigiladoId),
+          vigiladoId: parseInt(nitVigilado),
           placa,
           tipoId
         };
@@ -1375,25 +1376,28 @@ try {
   async listarHistorial(
     tipoId: number,
     vigiladoId: string,
-    placa: string
+    placa: string,
+   idRol: number
   ): Promise<any[]> {
     try {
       if (!TokenExterno.get() || !TokenExterno.isVigente()) {
         throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
       }
 
+      const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(vigiladoId, idRol);
+
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
-        // Obtener el usuario para conseguir el token de autorización
+      /*   // Obtener el usuario para conseguir el token de autorización
         const usuarioDb = await TblUsuarios.query().where('identificacion', vigiladoId).first();
         if (!usuarioDb) {
           throw new Exception("Usuario no encontrado", 404);
         }
-        const tokenAutorizacion = usuarioDb.tokenAutorizado || '';
+        const tokenAutorizacion = usuarioDb.tokenAutorizado || ''; */
 
         const respuestaHistorial = await axios.get(
-          `${urlMantenimientos}/mantenimiento/listar-historial?tipoId=${tipoId}&vigiladoId=${vigiladoId}&placa=${placa}`,
+          `${urlMantenimientos}/mantenimiento/listar-historial?tipoId=${tipoId}&vigiladoId=${nitVigilado}&placa=${placa}`,
           {
             headers: {
               'Authorization': `Bearer ${TokenExterno.get()}`,
