@@ -1,5 +1,6 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import type { MultipartFileContract } from '@ioc:Adonis/Core/BodyParser'
+import { Exception } from '@adonisjs/core/build/standalone'
 import { ServicioMantenimeinto } from 'App/Dominio/Datos/Servicios/ServicioMantenimiento';
 import TblArchivoPrograma from 'App/Infraestructura/Datos/Entidad/ArchivoPrograma';
 import TblMantenimiento from 'App/Infraestructura/Datos/Entidad/Mantenimiento';
@@ -48,7 +49,10 @@ export default class ControladorMantenimiento {
     return response.status(500).send({ mensaje: 'Error interno del servidor' })
   }
 
-  private async leerRegistrosDesdeExcel(archivo: MultipartFileContract): Promise<any[]> {
+  private async leerRegistrosDesdeExcel(
+    archivo: MultipartFileContract,
+    columnasRequeridas?: Array<{ nombre: string; descripcion?: string }>
+  ): Promise<any[]> {
     const workbook = new ExcelJS.Workbook();
     if (archivo.tmpPath) {
       await workbook.xlsx.readFile(archivo.tmpPath);
@@ -67,6 +71,36 @@ export default class ControladorMantenimiento {
       .map((valor) => (typeof valor === 'string' ? valor.trim() : valor))
       .map((valor) => (typeof valor === 'number' ? String(valor) : valor))
       .filter((valor) => valor);
+
+    if (columnasRequeridas && columnasRequeridas.length > 0) {
+      const headersNormalizados = new Map<string, string>(
+        headers.map((valor) => {
+          const original = String(valor).trim();
+          return [original.toLowerCase(), original];
+        })
+      );
+
+      const faltantes = columnasRequeridas.filter((columna) => {
+        const llave = columna.nombre.trim().toLowerCase();
+        return !headersNormalizados.has(llave);
+      });
+
+      if (faltantes.length > 0) {
+        const detalle = faltantes
+          .map((columna) => {
+            if (columna.descripcion) {
+              return `${columna.nombre} (${columna.descripcion})`;
+            }
+            return columna.nombre;
+          })
+          .join(', ');
+
+        throw new Exception(
+          `El archivo no contiene las columnas requeridas: ${detalle}`,
+          400
+        );
+      }
+    }
 
     const registros: any[] = [];
 
@@ -744,7 +778,19 @@ export default class ControladorMantenimiento {
         return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
       }
 
-      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      const columnasRequeridas = [
+        { nombre: 'vigiladoId', descripcion: 'Nit de la empresa de transporte' },
+        { nombre: 'placa', descripcion: 'placa del vehiculo al que se le realiza el mantenimiento' },
+        { nombre: 'fecha', descripcion: 'fecha del mantenimiento preventivo' },
+        { nombre: 'hora', descripcion: 'hora del mantenimiento preventivo' },
+        { nombre: 'nit', descripcion: 'nit de la empresa que realiza el mantenimiento preventivo' },
+        { nombre: 'razonSocial', descripcion: 'razón social de la empresa que realiza el mantenimiento preventivo' },
+        { nombre: 'tipoIdentificacion', descripcion: 'tipo de identificación del responsable' },
+        { nombre: 'numeroIdentificacion', descripcion: 'número de identificación del responsable' },
+        { nombre: 'nombresResponsable', descripcion: 'nombre del responsable del mantenimiento preventivo' },
+        { nombre: 'detalleActividades', descripcion: 'descripción detallada del mantenimiento preventivo realizado' }
+      ];
+      const registros = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
       if (!Array.isArray(registros) || registros.length === 0) {
         return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
       }
@@ -792,7 +838,19 @@ export default class ControladorMantenimiento {
         return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
       }
 
-      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      const columnasRequeridas = [
+        { nombre: 'vigiladoId', descripcion: 'Nit de la empresa de transporte' },
+        { nombre: 'placa', descripcion: 'placa del vehiculo al que se le realiza el mantenimiento' },
+        { nombre: 'fecha', descripcion: 'fecha del mantenimiento correctivo' },
+        { nombre: 'hora', descripcion: 'hora del mantenimiento correctivo' },
+        { nombre: 'nit', descripcion: 'nit de la empresa que realiza el mantenimiento correctivo' },
+        { nombre: 'razonSocial', descripcion: 'razón social de la empresa que realiza el mantenimiento correctivo' },
+        { nombre: 'tipoIdentificacion', descripcion: 'tipo de identificación del responsable' },
+        { nombre: 'numeroIdentificacion', descripcion: 'número de identificación del responsable' },
+        { nombre: 'nombresResponsable', descripcion: 'nombre del responsable del mantenimiento correctivo' },
+        { nombre: 'detalleActividades', descripcion: 'descripción detallada del mantenimiento correctivo realizado' }
+      ];
+      const registros = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
       if (!Array.isArray(registros) || registros.length === 0) {
         return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
       }
@@ -840,7 +898,19 @@ export default class ControladorMantenimiento {
         return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
       }
 
-      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      const columnasRequeridas = [
+        { nombre: 'vigiladoId', descripcion: 'Nit de la empresa de transporte' },
+        { nombre: 'placa', descripcion: 'placa del vehiculo al que se le realiza el alistamiento' },
+        { nombre: 'tipoIdentificacionResponsable', descripcion: 'tipo de identificación del responsable' },
+        { nombre: 'numeroIdentificacionResponsable', descripcion: 'número de identificación del responsable' },
+        { nombre: 'nombreResponsable', descripcion: 'nombre del responsable del alistamiento' },
+        { nombre: 'tipoIdentificacionConductor', descripcion: 'tipo de identificación del conductor' },
+        { nombre: 'numeroIdentificacionConductor', descripcion: 'número de identificación del conductor' },
+        { nombre: 'nombresConductor', descripcion: 'nombre del conductor' },
+        { nombre: 'detalleActividades', descripcion: 'descripción detallada del alistamiento realizado' },
+        { nombre: 'actividades', descripcion: 'lista de actividades realizadas (1,2,3), revisar la hoja de actividades' }
+      ];
+      const registros = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
       if (!Array.isArray(registros) || registros.length === 0) {
         return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
       }
