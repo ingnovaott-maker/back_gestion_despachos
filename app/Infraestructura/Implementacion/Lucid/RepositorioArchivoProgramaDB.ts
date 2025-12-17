@@ -11,12 +11,18 @@ import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
 
 export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma {
+  private async obtenerTokenExterno(): Promise<string> {
+    const token = await TokenExterno.get();
+    if (!token || !TokenExterno.isVigente()) {
+      throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+    }
+    return token;
+  }
+
   async guardar(nombreOriginal: string, documento: string, ruta: string, idRol: number, tipoId: number, usuario: string): Promise<any> {
     try {
       // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const tokenExterno = await this.obtenerTokenExterno();
 
       // Obtener datos de autenticación según el rol
       let tokenAutorizacion = '';
@@ -88,7 +94,7 @@ export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma 
           datosArchivo,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'Content-Type': 'application/json'
             }

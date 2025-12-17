@@ -6,6 +6,14 @@ import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 
 export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehiculo {
+  private async obtenerTokenExterno(): Promise<string> {
+    const token = await TokenExterno.get();
+    if (!token || !TokenExterno.isVigente()) {
+      throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+    }
+    return token;
+  }
+
   async Listar(obj_filter:any):Promise<any>{
     try {
 
@@ -30,9 +38,7 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
   async Crear(data: any, token: string, documento: string): Promise<any> {
       try {
         // Validar que exista el token externo
-        if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-          throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-        }
+        const tokenExterno = await this.obtenerTokenExterno();
 
         // 1. Guardar localmente primero
         const novedadVehiculoDTO = {
@@ -71,7 +77,7 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
             data,
             {
               headers: {
-                'Authorization': `Bearer ${TokenExterno.get()}`,
+                'Authorization': `Bearer ${tokenExterno}`,
                 'token': token,
                 'documento': documento,
                 'Content-Type': 'application/json'

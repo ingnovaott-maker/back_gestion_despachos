@@ -546,6 +546,137 @@ export default class ControladorMantenimiento {
     }
   }
 
+  public async descargarPlantillaAlistamiento ({ request, response }: HttpContextContract) {
+    let payloadJWT: any
+    try {
+      payloadJWT = await request.obtenerPayloadJWT()
+      const actividades = await this.servicioMantenimiento.listarActividades()
+
+      const workbook = new ExcelJS.Workbook()
+      const hojaPrincipal = workbook.addWorksheet('alistamiento')
+      hojaPrincipal.columns = [
+        { header: 'vigiladoId', key: 'vigiladoId', width: 18 },
+        { header: 'placa', key: 'placa', width: 12 },
+        { header: 'tipoIdentificacionResponsable', key: 'tipoIdentificacionResponsable', width: 34 },
+        { header: 'numeroIdentificacionResponsable', key: 'numeroIdentificacionResponsable', width: 32 },
+        { header: 'nombreResponsable', key: 'nombreResponsable', width: 28 },
+        { header: 'tipoIdentificacionConductor', key: 'tipoIdentificacionConductor', width: 32 },
+        { header: 'numeroIdentificacionConductor', key: 'numeroIdentificacionConductor', width: 32 },
+        { header: 'nombresConductor', key: 'nombresConductor', width: 26 },
+        { header: 'detalleActividades', key: 'detalleActividades', width: 30 },
+        { header: 'actividades', key: 'actividades', width: 18 }
+      ]
+      hojaPrincipal.addRow({})
+
+      const hojaActividades = workbook.addWorksheet('actividades')
+      hojaActividades.columns = [
+        { header: 'id', key: 'id', width: 12 },
+        { header: 'nombre', key: 'nombre', width: 40 }
+      ]
+      actividades.forEach((actividad) => {
+        hojaActividades.addRow({ id: actividad.id, nombre: actividad.nombre })
+      })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+
+      response.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      response.header('Content-Disposition', 'attachment; filename=plantilla_alistamiento.xlsx')
+      return response.send(buffer)
+    } catch (error: any) {
+      const documento = payloadJWT?.documento ?? ''
+      await guardarLogError(error, documento, 'descargarPlantillaAlistamiento')
+      return this.manejarError(error, response)
+    }
+  }
+
+  public async descargarPlantillaPreventivoCorrectivo ({ request, response }: HttpContextContract) {
+    let payloadJWT: any
+    try {
+      payloadJWT = await request.obtenerPayloadJWT()
+
+      const workbook = new ExcelJS.Workbook()
+      const hojaPrincipal = workbook.addWorksheet('mantenimiento')
+      hojaPrincipal.columns = [
+        { header: 'vigiladoId', key: 'vigiladoId', width: 18 },
+        { header: 'placa', key: 'placa', width: 12 },
+        { header: 'fecha', key: 'fecha', width: 16 },
+        { header: 'hora', key: 'hora', width: 12 },
+        { header: 'nit', key: 'nit', width: 18 },
+        { header: 'razonSocial', key: 'razonSocial', width: 28 },
+        { header: 'tipoIdentificacion', key: 'tipoIdentificacion', width: 24 },
+        { header: 'numeroIdentificacion', key: 'numeroIdentificacion', width: 26 },
+        { header: 'nombresResponsable', key: 'nombresResponsable', width: 28 },
+        { header: 'detalleActividades', key: 'detalleActividades', width: 30 }
+      ]
+      hojaPrincipal.addRow({})
+
+      const buffer = await workbook.xlsx.writeBuffer()
+
+      response.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      response.header('Content-Disposition', 'attachment; filename=plantilla_mantenimiento_preventivo_correctivo.xlsx')
+      return response.send(buffer)
+    } catch (error: any) {
+      const documento = payloadJWT?.documento ?? ''
+      await guardarLogError(error, documento, 'descargarPlantillaPreventivoCorrectivo')
+      return this.manejarError(error, response)
+    }
+  }
+
+  public async listarTrabajosFallidos ({ request, response }: HttpContextContract) {
+    let payloadJWT: any;
+    try {
+      payloadJWT = await request.obtenerPayloadJWT();
+      const { documento: usuario, idRol } = payloadJWT;
+      const { tipo, estado } = request.qs();
+
+      const filtros: { tipo?: string; estado?: string } = {};
+      if (tipo) {
+        filtros.tipo = String(tipo);
+      }
+      if (estado) {
+        filtros.estado = String(estado);
+      }
+
+      const trabajos = await this.servicioMantenimiento.listarTrabajosFallidos(usuario, idRol, filtros);
+      return trabajos;
+    } catch (error: any) {
+      const documento = payloadJWT?.documento ?? '';
+      await guardarLogError(error, documento, 'listarTrabajosFallidos');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async reintentarTrabajoFallido ({ request, response, params }: HttpContextContract) {
+    let payloadJWT: any;
+    try {
+      const jobId = Number(params.jobId ?? params.id);
+      if (!Number.isInteger(jobId)) {
+        return response.status(400).send({ mensaje: 'El jobId es requerido y debe ser un número entero' });
+      }
+
+      payloadJWT = await request.obtenerPayloadJWT();
+      const { documento: usuario, idRol } = payloadJWT;
+
+      const body = request.body() || {};
+      let opciones: { payload?: Record<string, any> | null } | undefined;
+
+      if (Object.prototype.hasOwnProperty.call(body, 'payload')) {
+        const override = body.payload;
+        if (override !== null && typeof override !== 'object') {
+          return response.status(400).send({ mensaje: 'El payload debe ser un objeto o nulo' });
+        }
+        opciones = { payload: override ?? null };
+      }
+
+      const resultado = await this.servicioMantenimiento.reintentarTrabajoFallido(jobId, usuario, idRol, opciones);
+      return response.status(200).json(resultado);
+    } catch (error: any) {
+      const documento = payloadJWT?.documento ?? '';
+      await guardarLogError(error, documento, 'reintentarTrabajoFallido');
+      return this.manejarError(error, response);
+    }
+  }
+
   private async obtenerParametrica(endpoint:string){
     const host = Env.get('URL_PARAMETRICAS')
     const headers = {

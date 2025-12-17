@@ -46,6 +46,14 @@ export class ServicioMantenimeinto{
     return this.repositorio.listarActividades()
   }
 
+  async listarTrabajosFallidos (usuario: string, idRol: number, filtros?: { tipo?: string, estado?: string }): Promise<any[]> {
+    return this.repositorio.listarTrabajosFallidos(usuario, idRol, filtros)
+  }
+
+  async reintentarTrabajoFallido (jobId: number, usuario: string, idRol: number, opciones?: { payload?: Record<string, any> | null }): Promise<any> {
+    return this.repositorio.reintentarTrabajoFallido(jobId, usuario, idRol, opciones)
+  }
+
   async visualizarAutorizacion (mantenimientoId:number, usuario:string, idRol:number): Promise<any>{
     return this.repositorio.visualizarAutorizacion(mantenimientoId, usuario, idRol)
   }

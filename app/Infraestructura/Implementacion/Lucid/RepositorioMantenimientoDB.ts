@@ -19,6 +19,7 @@ import TblAutorizaciones from "App/Infraestructura/Datos/Entidad/Autorizaciones"
 import { TokenExterno } from "App/Dominio/Utilidades/TokenExterno";
 import TblMantenimientoJob, { TipoMantenimientoJob } from "App/Infraestructura/Datos/Entidad/MantenimientoJob";
 import { OpcionesSincronizacion } from "App/Dominio/Repositorios/RepositorioMantenimiento";
+import type { ModelQueryBuilderContract } from "@ioc:Adonis/Lucid/Orm";
 
 export class MantenimientoPendienteError extends Error {}
 
@@ -70,10 +71,12 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         return job;
   }
 
-  private async validarTokenExterno() {
-    if (!TokenExterno.get() || !TokenExterno.isVigente()) {
+  private async validarTokenExterno(): Promise<string> {
+    const token = await TokenExterno.get();
+    if (!token || !TokenExterno.isVigente()) {
       throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
     }
+    return token;
   }
 
   private convertirErrorExterno(errorExterno: any, mensajePorDefecto: string): never {
@@ -105,6 +108,143 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     mantenimiento.merge(campos);
     await mantenimiento.save();
+  }
+
+  private async restringirTrabajosPorUsuario(
+    query: ModelQueryBuilderContract<typeof TblMantenimientoJob>,
+    usuario: string,
+    idRol: number
+  ): Promise<void> {
+    if (idRol === 3) {
+      query.andWhere('tmj_usuario_documento', usuario);
+      return;
+    }
+
+    const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
+
+    if (!usuarioDb) {
+      throw new Exception("Usuario no encontrado", 404);
+    }
+
+    const valoresPermitidos = new Set<string>();
+
+    if (usuarioDb.identificacion) {
+      valoresPermitidos.add(String(usuarioDb.identificacion));
+    }
+
+    if (usuarioDb.id) {
+      valoresPermitidos.add(String(usuarioDb.id));
+    }
+
+    if (valoresPermitidos.size === 0) {
+      query.whereRaw('1 = 0');
+      return;
+    }
+
+    const permitidos = Array.from(valoresPermitidos);
+
+    query.andWhere((builder) => {
+      builder.whereIn('tmj_vigilado_id', permitidos).orWhere('tmj_usuario_documento', usuario);
+    });
+  }
+
+  private async asegurarPermisoSobreJob(job: TblMantenimientoJob, usuario: string, idRol: number): Promise<void> {
+    if (idRol === 3) {
+      if (job.usuarioDocumento !== usuario) {
+        throw new Exception('No cuenta con permisos para gestionar este trabajo', 403);
+      }
+      return;
+    }
+
+    const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
+
+    if (!usuarioDb) {
+      throw new Exception("Usuario no encontrado", 404);
+    }
+
+    const valoresPermitidos = new Set<string>();
+
+    if (usuarioDb.identificacion) {
+      valoresPermitidos.add(String(usuarioDb.identificacion));
+    }
+
+    if (usuarioDb.id) {
+      valoresPermitidos.add(String(usuarioDb.id));
+    }
+
+    const vigiladoJob = String(job.vigiladoId ?? '');
+
+    if (!valoresPermitidos.has(vigiladoJob) && job.usuarioDocumento !== usuario) {
+      throw new Exception('No cuenta con permisos para gestionar este trabajo', 403);
+    }
+  }
+
+  private normalizarActividades(actividadesEntrada: any): Array<{ id: number; estado: boolean }> {
+    if (!actividadesEntrada) {
+      return [];
+    }
+
+    if (typeof actividadesEntrada === 'string') {
+      const texto = actividadesEntrada.trim();
+      if (texto.startsWith('[') && texto.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(texto);
+          if (Array.isArray(parsed)) {
+            return this.normalizarActividades(parsed);
+          }
+        } catch (error) {
+          // ignorar errores de parseo y continuar con la lógica estándar
+        }
+      }
+    }
+
+    const comoArreglo = Array.isArray(actividadesEntrada)
+      ? actividadesEntrada
+      : typeof actividadesEntrada === 'string'
+        ? actividadesEntrada.split(',')
+        : [actividadesEntrada];
+
+    const resultado: Array<{ id: number; estado: boolean }> = [];
+
+    for (const item of comoArreglo) {
+      if (item === null || item === undefined) {
+        continue;
+      }
+
+      if (typeof item === 'object' && !Array.isArray(item)) {
+        const posibleId = item.id ?? item.actividadId ?? item.value ?? item;
+        const id = Number(typeof posibleId === 'string' ? posibleId.trim() : posibleId);
+        if (Number.isFinite(id)) {
+          const estadoBruto = item.estado ?? item.tda_estado ?? item.state;
+          let estado = true;
+          if (typeof estadoBruto === 'boolean') {
+            estado = estadoBruto;
+          } else if (typeof estadoBruto === 'string') {
+            const normalizado = estadoBruto.trim().toLowerCase();
+            estado = !['0', 'false', 'no', 'n', 'off'].includes(normalizado);
+          } else if (typeof estadoBruto === 'number') {
+            estado = estadoBruto !== 0;
+          }
+          resultado.push({ id, estado });
+        }
+        continue;
+      }
+
+      const comoTexto = String(item).trim();
+      if (comoTexto === '') {
+        continue;
+      }
+      const id = Number(comoTexto);
+      if (Number.isFinite(id)) {
+        resultado.push({ id, estado: true });
+      }
+    }
+
+    return resultado;
+  }
+
+  private actividadesParaApi(actividadesEntrada: any): number[] {
+    return Array.from(new Set(this.normalizarActividades(actividadesEntrada).map((actividad) => actividad.id)));
   }
 
   /**
@@ -144,50 +284,39 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   }
 
   async listarPlacas(tipoId: number, usuario: string, idRol: number): Promise<any[]> {
+    try {
+      const tokenExterno = await this.validarTokenExterno();
 
-try {
-          if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-            throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-          }
+      const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
-          // Obtener datos de autenticación según el rol
-          const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
-
-          // Enviar datos al API externo de mantenimiento
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
-       // const token = Env.get("TOKEN");
 
         const respuestaArchivosPrograma = await axios.get(
           `${urlMantenimientos}/mantenimiento/listar-placas?vigiladoId=${nitVigilado}&tipoId=${tipoId}`,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'Content-Type': 'application/json'
             }
           }
         );
 
-        // Retornar la respuesta del API externo
         return respuestaArchivosPrograma.data;
       } catch (errorExterno: any) {
         console.error("Error al enviar datos al API externo de mantenimiento:", errorExterno);
-        // Crear excepción con la respuesta completa del API externo si existe
         const exception = new Exception(
           errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de mantenimiento",
           errorExterno.response?.status || 500
         );
-        // Agregar los datos completos del API externo a la excepción
         if (errorExterno.response?.data) {
           (exception as any).responseData = errorExterno.response.data;
         }
         throw exception;
       }
-
     } catch (error: any) {
       console.log(error);
-      // Re-lanzar excepciones de tipo Exception para que el controlador las maneje correctamente
       if (error instanceof Exception) {
         throw error;
       }
@@ -247,7 +376,7 @@ try {
         };
       }
 
-      await this.validarTokenExterno();
+      const tokenExterno = await this.validarTokenExterno();
 
       // Enviar datos al API externo de mantenimiento
       try {
@@ -264,7 +393,7 @@ try {
           datosMantenimiento,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'Content-Type': 'application/json'
             }
@@ -312,9 +441,6 @@ try {
     } = datos;
     try {
       const asyncMode = opciones?.diferido === true;
-      if (!asyncMode) {
-        await this.validarTokenExterno();
-      }
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -370,6 +496,8 @@ try {
         };
       }
 
+      const tokenExterno = await this.validarTokenExterno();
+
       // 2. Enviar datos al API externo de mantenimiento preventivo
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -391,7 +519,7 @@ try {
           datosPreventivo,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado,
               'Content-Type': 'application/json'
@@ -444,9 +572,6 @@ try {
     } = datos;
     try {
       const asyncMode = opciones?.diferido === true;
-      if (!asyncMode) {
-        await this.validarTokenExterno();
-      }
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -504,6 +629,7 @@ try {
 
       // 2. Enviar datos al API externo de mantenimiento correctivo
       try {
+        const tokenExterno = await this.validarTokenExterno();
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const datosCorrectivo = {
@@ -523,7 +649,7 @@ try {
           datosCorrectivo,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado,
               'Content-Type': 'application/json'
@@ -576,12 +702,12 @@ try {
     } = datos;
     try {
       const asyncMode = opciones?.diferido === true;
-      if (!asyncMode) {
-        await this.validarTokenExterno();
-      }
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
+
+      const actividadesNormalizadas = this.normalizarActividades(actividades);
+      const actividadesIds = this.actividadesParaApi(actividades);
 
       // 1. Guardar localmente primero
       const alistamientoDTO = {
@@ -600,8 +726,13 @@ try {
       const alistamiento = await TblAlistamiento.create(alistamientoDTO);
 
       // Guardar actividades relacionadas si existen
-      if (actividades && actividades.length > 0 && alistamiento.id) {
-        for (const actividad of actividades) {
+      if (actividadesNormalizadas.length > 0 && alistamiento.id) {
+        const idsAdjuntados = new Set<number>();
+        for (const actividad of actividadesNormalizadas) {
+          if (idsAdjuntados.has(actividad.id)) {
+            continue;
+          }
+          idsAdjuntados.add(actividad.id);
           await alistamiento.related('actividades').attach({
             [actividad.id]: {
               tda_estado: actividad.estado
@@ -633,7 +764,7 @@ try {
             numeroIdentificacionConductor,
             nombresConductor,
             detalleActividades,
-            actividades,
+            actividades: actividadesIds,
           }
         });
 
@@ -647,6 +778,7 @@ try {
 
       // 2. Enviar datos al API externo de alistamiento
       try {
+        const tokenExterno = await this.validarTokenExterno();
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const datosAlistamiento = {
@@ -658,7 +790,7 @@ try {
           nombresConductor,
           mantenimientoId,
           detalleActividades,
-          actividades
+          actividades: actividadesIds
         };
 
         const respuestaAlistamiento = await axios.post(
@@ -666,7 +798,7 @@ try {
           datosAlistamiento,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado
             }
@@ -707,9 +839,6 @@ try {
     const { mantenimientoId } = datos;
     try {
       const asyncMode = opciones?.diferido === true;
-      if (!asyncMode) {
-        await this.validarTokenExterno();
-      }
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -789,6 +918,7 @@ try {
 
       // 2. Enviar datos al API externo de autorización
       try {
+        const tokenExterno = await this.validarTokenExterno();
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const respuestaAutorizacion = await axios.post(
@@ -796,7 +926,7 @@ try {
           datos,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado,
               'Content-Type': 'application/json'
@@ -871,7 +1001,7 @@ try {
     const placa = payload.placa ?? mantenimiento.placa;
     const tipoId = payload.tipoId ?? mantenimiento.tipoId;
 
-    await this.validarTokenExterno();
+    const tokenExterno = await this.validarTokenExterno();
 
     const { tokenAutorizacion } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -890,7 +1020,7 @@ try {
         datosMantenimiento,
         {
           headers: {
-            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'Authorization': `Bearer ${tokenExterno}`,
             'token': tokenAutorizacion,
             'Content-Type': 'application/json'
           }
@@ -930,7 +1060,7 @@ try {
       throw new MantenimientoPendienteError('El mantenimiento base aún no ha sido sincronizado');
     }
 
-    await this.validarTokenExterno();
+    const tokenExterno = await this.validarTokenExterno();
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -953,7 +1083,7 @@ try {
         datosPreventivo,
         {
           headers: {
-            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'Authorization': `Bearer ${tokenExterno}`,
             'token': tokenAutorizacion,
             'vigiladoId': nitVigilado,
             'Content-Type': 'application/json'
@@ -996,7 +1126,7 @@ try {
       throw new MantenimientoPendienteError('El mantenimiento base aún no ha sido sincronizado');
     }
 
-    await this.validarTokenExterno();
+    const tokenExterno = await this.validarTokenExterno();
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -1019,7 +1149,7 @@ try {
         datosCorrectivo,
         {
           headers: {
-            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'Authorization': `Bearer ${tokenExterno}`,
             'token': tokenAutorizacion,
             'vigiladoId': nitVigilado,
             'Content-Type': 'application/json'
@@ -1062,7 +1192,7 @@ try {
       throw new MantenimientoPendienteError('El mantenimiento base aún no ha sido sincronizado');
     }
 
-    await this.validarTokenExterno();
+    const tokenExterno = await this.validarTokenExterno();
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -1070,10 +1200,16 @@ try {
     const actividadesRelacionadas = await TblDetallesAlistamientoActividades.query()
       .where('tda_alistamiento_id', alistamiento.id ?? 0);
 
-    const actividades = actividadesRelacionadas.map((actividad) => ({
+    let actividades = actividadesRelacionadas.map((actividad) => ({
       id: actividad.actividadId,
       estado: actividad.estado
     }));
+
+    if (actividades.length === 0) {
+      actividades = this.normalizarActividades(job.payload?.actividades ?? []);
+    }
+
+    const actividadesIds = this.actividadesParaApi(actividades);
 
     const datosAlistamiento = {
       tipoIdentificacionResponsable: alistamiento.tipoIdentificacionResponsable,
@@ -1084,7 +1220,7 @@ try {
       nombresConductor: alistamiento.nombresConductor,
       mantenimientoId: mantenimiento.mantenimientoId,
       detalleActividades: alistamiento.detalleActividades,
-      actividades,
+      actividades: actividadesIds,
     };
 
     try {
@@ -1093,7 +1229,7 @@ try {
         datosAlistamiento,
         {
           headers: {
-            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'Authorization': `Bearer ${tokenExterno}`,
             'token': tokenAutorizacion,
             'vigiladoId': nitVigilado
           }
@@ -1131,7 +1267,7 @@ try {
       throw new Exception('Mantenimiento local asociado no encontrado', 404);
     }
 
-    await this.validarTokenExterno();
+    const tokenExterno = await this.validarTokenExterno();
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
@@ -1145,7 +1281,7 @@ try {
         datosAutorizacion,
         {
           headers: {
-            'Authorization': `Bearer ${TokenExterno.get()}`,
+            'Authorization': `Bearer ${tokenExterno}`,
             'token': tokenAutorizacion,
             'vigiladoId': nitVigilado,
             'Content-Type': 'application/json'
@@ -1171,10 +1307,7 @@ try {
 
   async visualizarPreventivo(mantenimientoId: number, usuario: string, idRol: number): Promise<any> {
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const tokenExterno = await this.validarTokenExterno();
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -1187,7 +1320,7 @@ try {
           `${urlMantenimientos}/mantenimiento/visualizar-preventivo?mantenimientoId=${mantenimientoId}`,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado
             }
@@ -1222,10 +1355,7 @@ try {
 
   async visualizarCorrectivo(mantenimientoId: number, usuario: string, idRol: number): Promise<any> {
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const tokenExterno = await this.validarTokenExterno();
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -1238,7 +1368,7 @@ try {
           `${urlMantenimientos}/mantenimiento/visualizar-correctivo?mantenimientoId=${mantenimientoId}`,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado
             }
@@ -1273,10 +1403,7 @@ try {
 
   async visualizarAlistamiento(mantenimientoId: number, usuario: string, idRol: number): Promise<any> {
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const tokenExterno = await this.validarTokenExterno();
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -1289,7 +1416,7 @@ try {
           `${urlMantenimientos}/mantenimiento/visualizar-alistamiento?mantenimientoId=${mantenimientoId}`,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado
             }
@@ -1324,10 +1451,7 @@ try {
 
   async visualizarAutorizacion(mantenimientoId: number, usuario: string, idRol: number): Promise<any> {
     try {
-      // Validar que exista el token externo
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const tokenExterno = await this.validarTokenExterno();
 
       // Obtener datos de autenticación según el rol
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
@@ -1340,7 +1464,7 @@ try {
           `${urlMantenimientos}/mantenimiento/visualizar-autorizacion?mantenimientoId=${mantenimientoId}`,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'vigiladoId': nitVigilado
             }
@@ -1380,9 +1504,7 @@ try {
    idRol: number
   ): Promise<any[]> {
     try {
-      if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-        throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-      }
+      const tokenExterno = await this.validarTokenExterno();
 
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(vigiladoId, idRol);
 
@@ -1400,7 +1522,7 @@ try {
           `${urlMantenimientos}/mantenimiento/listar-historial?tipoId=${tipoId}&vigiladoId=${nitVigilado}&placa=${placa}`,
           {
             headers: {
-              'Authorization': `Bearer ${TokenExterno.get()}`,
+              'Authorization': `Bearer ${tokenExterno}`,
               'token': tokenAutorizacion,
               'Content-Type': 'application/json'
             }
@@ -1541,6 +1663,109 @@ try {
         "No se encontraron registros de placas para este usuario"
       );
     }
+  }
+
+  async listarTrabajosFallidos(
+    usuario: string,
+    idRol: number,
+    filtros?: { tipo?: string; estado?: string }
+  ): Promise<any[]> {
+    const estadoObjetivo = (filtros?.estado || 'fallido').trim();
+    const query = TblMantenimientoJob.query()
+      .where('tmj_estado', estadoObjetivo)
+      .orderBy('tmj_actualizado', 'desc');
+
+    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
+
+    if (filtros?.tipo) {
+      query.andWhere('tmj_tipo', filtros.tipo);
+    }
+
+    const trabajos = await query;
+
+    if (trabajos.length === 0) {
+      return [];
+    }
+
+    const mantenimientoIds = trabajos
+      .map((job) => job.mantenimientoLocalId)
+      .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
+
+    const mantenimientos = mantenimientoIds.length > 0
+      ? await TblMantenimiento.query().whereIn('id', mantenimientoIds)
+      : [];
+
+    const mantenimientosPorId = new Map<number, TblMantenimiento>();
+    for (const mantenimiento of mantenimientos) {
+      if (typeof mantenimiento.id === 'number') {
+        mantenimientosPorId.set(mantenimiento.id, mantenimiento);
+      }
+    }
+
+    return trabajos.map((job) => {
+      const mantenimiento = job.mantenimientoLocalId ? mantenimientosPorId.get(job.mantenimientoLocalId) : undefined;
+
+      return {
+        id: job.id,
+        tipo: job.tipo,
+        estado: job.estado,
+        reintentos: job.reintentos,
+        ultimoError: job.ultimoError,
+        siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
+        createdAt: job.createdAt ? job.createdAt.toISO() : null,
+        updatedAt: job.updatedAt ? job.updatedAt.toISO() : null,
+        mantenimientoLocalId: job.mantenimientoLocalId,
+        detalleId: job.detalleId,
+        vigiladoId: job.vigiladoId,
+        usuarioDocumento: job.usuarioDocumento,
+        payload: job.payload ?? null,
+        mantenimiento: mantenimiento
+          ? {
+              id: mantenimiento.id,
+              placa: mantenimiento.placa,
+              tipoId: mantenimiento.tipoId,
+              estado: mantenimiento.estado,
+              procesado: mantenimiento.procesado,
+              mantenimientoId: mantenimiento.mantenimientoId,
+            }
+          : null,
+      };
+    });
+  }
+
+  async reintentarTrabajoFallido(
+    jobId: number,
+    usuario: string,
+    idRol: number,
+    opciones?: { payload?: Record<string, any> | null }
+  ): Promise<any> {
+    const job = await TblMantenimientoJob.find(jobId);
+
+    if (!job) {
+      throw new Exception('Trabajo no encontrado', 404);
+    }
+
+    await this.asegurarPermisoSobreJob(job, usuario, idRol);
+
+    if (job.estado !== 'fallido') {
+      throw new Exception('Solo se pueden reprogramar trabajos en estado fallido', 400);
+    }
+
+    if (opciones && Object.prototype.hasOwnProperty.call(opciones, 'payload')) {
+      job.payload = opciones.payload ?? null;
+    }
+
+    job.estado = 'pendiente';
+    job.reintentos = 0;
+    job.ultimoError = null;
+    job.siguienteIntento = this.getColombiaDateTime();
+    await job.save();
+
+    return {
+      mensaje: 'Trabajo reprogramado para sincronización',
+      jobId: job.id,
+      siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
+    };
   }
 
   async listarPlacasTodas(tipoId: number, vigiladoId: string): Promise<any[]> {

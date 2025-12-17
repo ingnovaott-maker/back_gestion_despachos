@@ -1,6 +1,7 @@
 export class TokenExterno {
   private static _token: string | null = null
   private static _expiraEn: number | null = null
+  private static _refreshEnCurso: Promise<string> | null = null
 
   // Guarda el token y (opcionalmente) un timestamp de expiración en epoch seconds
   public static set(token: string, expiraEn?: number) {
@@ -8,8 +9,36 @@ export class TokenExterno {
     this._expiraEn = typeof expiraEn === 'number' ? expiraEn : null
   }
 
-  public static get(): string | null {
-    return this._token
+  public static async get(): Promise<string | null> {
+    if (this.isVigente()) {
+      return this._token
+    }
+
+    return this.refresh()
+  }
+
+  public static async refresh(): Promise<string | null> {
+    if (this._refreshEnCurso) {
+      return this._refreshEnCurso
+    }
+
+    const promesa = (async () => {
+      try {
+        const { ServicioAutenticacionExterna } = await import('App/Dominio/Datos/Servicios/ServicioAutenticacionExterna')
+        const servicio = new ServicioAutenticacionExterna()
+        const token = await servicio.iniciarSesionConEnv()
+        this.set(token)
+        return token
+      } catch (error) {
+        this.clear()
+        throw error
+      } finally {
+        this._refreshEnCurso = null
+      }
+    })()
+
+    this._refreshEnCurso = promesa
+    return promesa
   }
 
   public static isVigente(): boolean {

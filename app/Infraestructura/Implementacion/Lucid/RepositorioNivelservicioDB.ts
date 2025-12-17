@@ -6,10 +6,16 @@ import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 
 export class RepositorioNivelservicioDB implements RepositorioNivelservicio {
-  async Listar(obj_filter:any, token: string, documento: string):Promise<any>{
-    if (!TokenExterno.get() || !TokenExterno.isVigente()) {
+  private async obtenerTokenExterno(): Promise<string> {
+    const tokenExterno = await TokenExterno.get();
+    if (!tokenExterno || !TokenExterno.isVigente()) {
       throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
     }
+    return tokenExterno;
+  }
+
+  async Listar(obj_filter:any, token: string, documento: string):Promise<any>{
+    const tokenExterno = await this.obtenerTokenExterno();
 
     try {
       const URL_DESPACHOS = Env.get('URL_DESPACHOS');
@@ -17,7 +23,7 @@ export class RepositorioNivelservicioDB implements RepositorioNivelservicio {
 
       const respuesta = await axios.get(url, {
         headers: {
-          'Authorization': `Bearer ${TokenExterno.get()}`,
+          'Authorization': `Bearer ${tokenExterno}`,
           'token': token,
           'Content-Type': 'application/json'
         }

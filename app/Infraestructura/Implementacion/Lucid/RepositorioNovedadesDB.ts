@@ -6,6 +6,14 @@ import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 
 export class RepositorioNovedadesDB implements RepositorioNovedades {
+  private async obtenerTokenExterno(): Promise<string> {
+    const token = await TokenExterno.get();
+    if (!token || !TokenExterno.isVigente()) {
+      throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
+    }
+    return token;
+  }
+
   async Listar(obj_filter:any):Promise<any>{
     try {
 
@@ -31,9 +39,7 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
   async Crear(data: any, token: string, documento: string): Promise<any> {
       try {
         // Validar que exista el token externo
-        if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-          throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-        }
+        const tokenExterno = await this.obtenerTokenExterno();
 
         // 1. Guardar localmente primero
         const novedadDTO = {
@@ -60,7 +66,7 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
             data,
             {
               headers: {
-                'Authorization': `Bearer ${TokenExterno.get()}`,
+                'Authorization': `Bearer ${tokenExterno}`,
                 'token': token,
                 'documento': documento,
                 'Content-Type': 'application/json'

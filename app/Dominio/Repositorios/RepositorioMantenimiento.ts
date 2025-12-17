@@ -19,5 +19,7 @@ export interface RepositorioMantenimiento{
     visualizarAutorizacion(mantenimientoId:number, usuario:string, idRol:number): Promise<any>
     guardarAutorizacion(datos:any, usuario:string, idRol:number, opciones?:OpcionesSincronizacion): Promise<any>
     listarActividades(): Promise<any[]>
+    listarTrabajosFallidos(usuario:string, idRol:number, filtros?:{ tipo?: string, estado?: string }): Promise<any[]>
+    reintentarTrabajoFallido(jobId:number, usuario:string, idRol:number, opciones?:{ payload?: Record<string, any> | null }): Promise<any>
 
 }

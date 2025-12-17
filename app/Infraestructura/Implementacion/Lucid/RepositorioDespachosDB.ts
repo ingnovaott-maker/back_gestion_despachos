@@ -10,10 +10,16 @@ import { RepositorioDespachos } from 'App/Dominio/Repositorios/RepositorioDespac
 
 
 export class RepositorioDesppachosDB implements RepositorioDespachos {
-  async Listar(documento: string, nit?: string):Promise<any>{
-    if (!TokenExterno.get() || !TokenExterno.isVigente()) {
+  private async obtenerTokenExterno(): Promise<string> {
+    const token = await TokenExterno.get();
+    if (!token || !TokenExterno.isVigente()) {
       throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
     }
+    return token;
+  }
+
+  async Listar(documento: string, nit?: string):Promise<any>{
+    const tokenExterno = await this.obtenerTokenExterno();
 
     try {
       const usuarioDb = await TblUsuarios.query().where('identificacion', documento).first();
@@ -28,7 +34,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
 
       const respuesta = await axios.get(url, {
         headers: {
-          'Authorization': `Bearer ${TokenExterno.get()}`,
+          'Authorization': `Bearer ${tokenExterno}`,
           'documento': documento,
           'token': tokenAutorizacion,
           'Content-Type': 'application/json'
@@ -115,9 +121,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
   }
 
   async BuscarPorId(id: number, token: string, documento: string): Promise<any> {
-    if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-      throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-    }
+    const tokenExterno = await this.obtenerTokenExterno();
 
     try {
       const URL_DESPACHOS = Env.get('URL_DESPACHOS');
@@ -125,7 +129,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
 
       const respuesta = await axios.get(url, {
         headers: {
-          'Authorization': `Bearer ${TokenExterno.get()}`,
+          'Authorization': `Bearer ${tokenExterno}`,
           'token': token,
           'documento': documento,
           'Content-Type': 'application/json'
@@ -150,9 +154,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
   }
 
   async BuscarPorPlacaVehiculo(placa: string, token: string, documento: string, fechaSalida?: string): Promise<any> {
-    if (!TokenExterno.get() || !TokenExterno.isVigente()) {
-      throw new Exception("Su sesión ha expirado. Por favor, vuelva a iniciar sesión", 401);
-    }
+    const tokenExterno = await this.obtenerTokenExterno();
 
     try {
       const URL_DESPACHOS = Env.get('URL_DESPACHOS');
@@ -164,7 +166,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
 
       const respuesta = await axios.get(url, {
         headers: {
-          'Authorization': `Bearer ${TokenExterno.get()}`,
+          'Authorization': `Bearer ${tokenExterno}`,
           'token': token,
           'documento': documento,
           'Content-Type': 'application/json'

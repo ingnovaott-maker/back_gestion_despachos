@@ -1,5 +1,31 @@
 {
   "commands": {
+    "mantenimiento:procesar-cola": {
+      "settings": {
+        "loadApp": true
+      },
+      "commandPath": "./commands/process_mantenimiento_queue",
+      "commandName": "mantenimiento:procesar-cola",
+      "description": "Procesa los trabajos pendientes de sincronización con el servicio externo de mantenimiento",
+      "args": [],
+      "aliases": [],
+      "flags": [
+        {
+          "name": "limite",
+          "propertyName": "limite",
+          "type": "number",
+          "alias": "l",
+          "description": "Cantidad máxima de trabajos a procesar en esta ejecución"
+        },
+        {
+          "name": "max-reintentos",
+          "propertyName": "maxReintentos",
+          "type": "number",
+          "alias": "r",
+          "description": "Número máximo de reintentos antes de marcar un trabajo como fallido"
+        }
+      ]
+    },
     "send:welcome": {
       "settings": {
         "loadApp": true,
