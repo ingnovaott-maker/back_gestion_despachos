@@ -247,6 +247,244 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     return Array.from(new Set(this.normalizarActividades(actividadesEntrada).map((actividad) => actividad.id)));
   }
 
+  private jobEstaProcesado(
+    job: TblMantenimientoJob,
+    mantenimiento?: TblMantenimiento | null,
+    detalle?: TblPreventivo | TblCorrectivo | TblAlistamiento | TblAutorizaciones | null
+  ): boolean {
+    const procesadoBase = Boolean(mantenimiento?.procesado || mantenimiento?.mantenimientoId);
+
+    switch (job.tipo) {
+      case 'base':
+        return procesadoBase;
+      case 'preventivo':
+      case 'correctivo':
+        if (detalle) {
+          const detalleProcesado = Boolean((detalle as TblPreventivo | TblCorrectivo).procesado);
+          const detalleSincronizado = Boolean((detalle as TblPreventivo | TblCorrectivo).mantenimientoId);
+          return detalleProcesado || detalleSincronizado || procesadoBase;
+        }
+        return procesadoBase;
+      case 'alistamiento':
+        if (detalle) {
+          const alistamiento = detalle as TblAlistamiento;
+          return Boolean(alistamiento.procesado || alistamiento.mantenimientoId || procesadoBase);
+        }
+        return procesadoBase;
+      case 'autorizacion':
+        if (detalle) {
+          const autorizacion = detalle as TblAutorizaciones;
+          return Boolean(autorizacion.mantenimientoId || procesadoBase);
+        }
+        return procesadoBase;
+      default:
+        return procesadoBase;
+    }
+  }
+
+  private construirDatosCompletos(
+    job: TblMantenimientoJob,
+    mantenimiento?: TblMantenimiento | null,
+    detalle?: Record<string, any> | null
+  ): Record<string, any> {
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    const detalleDatos = detalle && typeof detalle === 'object' ? detalle : {};
+    const vigiladoId = job.vigiladoId ?? (mantenimiento?.usuarioId ? String(mantenimiento.usuarioId) : null);
+
+    const base: Record<string, any> = {
+      tipo: job.tipo,
+      vigiladoId,
+      placa: detalleDatos.placa ?? mantenimiento?.placa ?? payload.placa ?? null,
+      tipoId: mantenimiento?.tipoId ?? payload.tipoId ?? null,
+      mantenimientoLocalId: job.mantenimientoLocalId ?? detalleDatos.mantenimientoId ?? null,
+      detalleId: job.detalleId ?? null,
+    };
+
+    switch (job.tipo) {
+      case 'base':
+        return {
+          ...base,
+        };
+      case 'preventivo':
+      case 'correctivo':
+        return {
+          ...base,
+          fecha: detalleDatos.fecha ?? payload.fecha ?? null,
+          hora: detalleDatos.hora ?? payload.hora ?? null,
+          nit: detalleDatos.nit ?? payload.nit ?? null,
+          razonSocial: detalleDatos.razonSocial ?? payload.razonSocial ?? null,
+          tipoIdentificacion: detalleDatos.tipoIdentificacion ?? payload.tipoIdentificacion ?? null,
+          numeroIdentificacion: detalleDatos.numeroIdentificacion ?? payload.numeroIdentificacion ?? null,
+          nombresResponsable: detalleDatos.nombresResponsable ?? payload.nombresResponsable ?? null,
+          detalleActividades: detalleDatos.detalleActividades ?? payload.detalleActividades ?? null,
+        };
+      case 'alistamiento':
+        return {
+          ...base,
+          tipoIdentificacionResponsable: detalleDatos.tipoIdentificacionResponsable ?? payload.tipoIdentificacionResponsable ?? null,
+          numeroIdentificacionResponsable: detalleDatos.numeroIdentificacionResponsable ?? payload.numeroIdentificacionResponsable ?? null,
+          nombreResponsable: detalleDatos.nombreResponsable ?? payload.nombreResponsable ?? null,
+          tipoIdentificacionConductor: detalleDatos.tipoIdentificacionConductor ?? payload.tipoIdentificacionConductor ?? null,
+          numeroIdentificacionConductor: detalleDatos.numeroIdentificacionConductor ?? payload.numeroIdentificacionConductor ?? null,
+          nombresConductor: detalleDatos.nombresConductor ?? payload.nombresConductor ?? null,
+          detalleActividades: detalleDatos.detalleActividades ?? payload.detalleActividades ?? null,
+          actividades: detalleDatos.actividades ?? this.normalizarActividades(payload.actividades ?? []),
+        };
+      case 'autorizacion':
+        return {
+          ...base,
+          ...payload,
+          ...detalleDatos,
+        };
+      default:
+        return {
+          ...base,
+          ...payload,
+        };
+    }
+  }
+
+  private construirMantenimientoRespuesta(job: TblMantenimientoJob, mantenimiento?: TblMantenimiento | null): Record<string, any> {
+    if (mantenimiento) {
+      return mantenimiento.toJSON();
+    }
+
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+
+    return {
+      id: job.mantenimientoLocalId ?? null,
+      placa: payload.placa ?? null,
+      tipoId: payload.tipoId ?? null,
+      estado: null,
+      procesado: false,
+      mantenimientoId: null,
+      vigiladoId: job.vigiladoId ?? null,
+      usuarioId: null,
+      fechaDiligenciamiento: null,
+      createdAt: null,
+      updatedAt: null,
+    };
+  }
+
+  private construirDetalleRespuesta(
+    job: TblMantenimientoJob,
+    mantenimiento: TblMantenimiento | null,
+    detalle: TblPreventivo | TblCorrectivo | TblAlistamiento | TblAutorizaciones | null,
+    payload: Record<string, any>
+  ): Record<string, any> {
+    if (detalle) {
+      return detalle.toJSON();
+    }
+
+    const tipoMantenimiento = mantenimiento?.tipoId ?? payload.tipoId ?? null;
+    const placaBase = payload.placa ?? mantenimiento?.placa ?? null;
+    const mantenimientoId = payload.mantenimientoId ?? job.mantenimientoLocalId ?? null;
+
+    const construirPreventivoOCorrectivo = () => ({
+      placa: placaBase,
+      fecha: payload.fecha ?? null,
+      hora: payload.hora ?? null,
+      nit: payload.nit ?? null,
+      razonSocial: payload.razonSocial ?? null,
+      tipoIdentificacion: payload.tipoIdentificacion ?? null,
+      numeroIdentificacion: payload.numeroIdentificacion ?? null,
+      nombresResponsable: payload.nombresResponsable ?? null,
+      mantenimientoId,
+      detalleActividades: payload.detalleActividades ?? null,
+      procesado: false,
+    });
+
+    const construirAlistamiento = () => ({
+      placa: placaBase,
+      tipoIdentificacionResponsable: payload.tipoIdentificacionResponsable ?? null,
+      numeroIdentificacionResponsable: payload.numeroIdentificacionResponsable ?? null,
+      nombreResponsable: payload.nombreResponsable ?? null,
+      tipoIdentificacionConductor: payload.tipoIdentificacionConductor ?? null,
+      numeroIdentificacionConductor: payload.numeroIdentificacionConductor ?? null,
+      nombresConductor: payload.nombresConductor ?? null,
+      mantenimientoId,
+      detalleActividades: payload.detalleActividades ?? null,
+      actividades: this.normalizarActividades(payload.actividades ?? []),
+      procesado: false,
+    });
+
+    const construirAutorizacion = () => ({
+      fechaViaje: payload.fechaViaje ?? null,
+      origen: payload.origen ?? null,
+      destino: payload.destino ?? null,
+      tipoIdentificacionNna: payload.tipoIdentificacionNna ?? null,
+      numeroIdentificacionNna: payload.numeroIdentificacionNna ?? null,
+      nombresApellidosNna: payload.nombresApellidosNna ?? null,
+      situacionDiscapacidad: payload.situacionDiscapacidad ?? null,
+      tipoDiscapacidad: payload.tipoDiscapacidad ?? null,
+      perteneceComunidadEtnica: payload.perteneceComunidadEtnica ?? null,
+      tipoPoblacionEtnica: payload.tipoPoblacionEtnica ?? null,
+      tipoIdentificacionOtorgante: payload.tipoIdentificacionOtorgante ?? null,
+      numeroIdentificacionOtorgante: payload.numeroIdentificacionOtorgante ?? null,
+      nombresApellidosOtorgante: payload.nombresApellidosOtorgante ?? null,
+      numeroTelefonicoOtorgante: payload.numeroTelefonicoOtorgante ?? null,
+      correoElectronicoOtorgante: payload.correoElectronicoOtorgante ?? null,
+      direccionFisicaOtorgante: payload.direccionFisicaOtorgante ?? null,
+      sexoOtorgante: payload.sexoOtorgante ?? null,
+      generoOtorgante: payload.generoOtorgante ?? null,
+      calidadActua: payload.calidadActua ?? null,
+      tipoIdentificacionAutorizadoViajar: payload.tipoIdentificacionAutorizadoViajar ?? null,
+      numeroIdentificacionAutorizadoViajar: payload.numeroIdentificacionAutorizadoViajar ?? null,
+      nombresApellidosAutorizadoViajar: payload.nombresApellidosAutorizadoViajar ?? null,
+      numeroTelefonicoAutorizadoViajar: payload.numeroTelefonicoAutorizadoViajar ?? null,
+      direccionFisicaAutorizadoViajar: payload.direccionFisicaAutorizadoViajar ?? null,
+      tipoIdentificacionAutorizadoRecoger: payload.tipoIdentificacionAutorizadoRecoger ?? null,
+      numeroIdentificacionAutorizadoRecoger: payload.numeroIdentificacionAutorizadoRecoger ?? null,
+      nombresApellidosAutorizadoRecoger: payload.nombresApellidosAutorizadoRecoger ?? null,
+      numeroTelefonicoAutorizadoRecoger: payload.numeroTelefonicoAutorizadoRecoger ?? null,
+      direccionFisicaAutorizadoRecoger: payload.direccionFisicaAutorizadoRecoger ?? null,
+      copiaAutorizacionViajeNombreOriginal: payload.copiaAutorizacionViajeNombreOriginal ?? null,
+      copiaAutorizacionViajeDocumento: payload.copiaAutorizacionViajeDocumento ?? null,
+      copiaAutorizacionViajeRuta: payload.copiaAutorizacionViajeRuta ?? null,
+      copiaDocumentoParentescoNombreOriginal: payload.copiaDocumentoParentescoNombreOriginal ?? null,
+      copiaDocumentoParentescoDocumento: payload.copiaDocumentoParentescoDocumento ?? null,
+      copiaDocumentoParentescoRuta: payload.copiaDocumentoParentescoRuta ?? null,
+      copiaDocumentoIdentidadAutorizadoNombreOriginal: payload.copiaDocumentoIdentidadAutorizadoNombreOriginal ?? null,
+      copiaDocumentoIdentidadAutorizadoDocumento: payload.copiaDocumentoIdentidadAutorizadoDocumento ?? null,
+      copiaDocumentoIdentidadAutorizadoRuta: payload.copiaDocumentoIdentidadAutorizadoRuta ?? null,
+      copiaConstanciaEntregaNombreOriginal: payload.copiaConstanciaEntregaNombreOriginal ?? null,
+      copiaConstanciaEntregaDocumento: payload.copiaConstanciaEntregaDocumento ?? null,
+      copiaConstanciaEntregaRuta: payload.copiaConstanciaEntregaRuta ?? null,
+      mantenimientoId,
+    });
+
+    switch (job.tipo) {
+      case 'base':
+        switch (tipoMantenimiento) {
+          case 1:
+          case 2:
+            return construirPreventivoOCorrectivo();
+          case 3:
+            return construirAlistamiento();
+          case 4:
+            return construirAutorizacion();
+          default:
+            return {
+              vigiladoId: job.vigiladoId ?? null,
+              placa: placaBase,
+              tipoId: tipoMantenimiento,
+              mantenimientoId,
+            };
+        }
+      case 'preventivo':
+      case 'correctivo':
+        return construirPreventivoOCorrectivo();
+      case 'alistamiento':
+        return construirAlistamiento();
+      case 'autorizacion':
+        return construirAutorizacion();
+      default:
+        return {
+          ...payload,
+        };
+    }
+  }
+
   /**
    * Obtiene los datos de autenticación según el rol del usuario
    */
@@ -1687,13 +1925,52 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       return [];
     }
 
-    const mantenimientoIds = trabajos
-      .map((job) => job.mantenimientoLocalId)
-      .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
+    const mantenimientoIds = new Set<number>();
+    const preventivoIds = new Set<number>();
+    const correctivoIds = new Set<number>();
+    const alistamientoIds = new Set<number>();
+    const autorizacionIds = new Set<number>();
 
-    const mantenimientos = mantenimientoIds.length > 0
-      ? await TblMantenimiento.query().whereIn('id', mantenimientoIds)
-      : [];
+    for (const job of trabajos) {
+      if (typeof job.mantenimientoLocalId === 'number' && Number.isFinite(job.mantenimientoLocalId)) {
+        mantenimientoIds.add(job.mantenimientoLocalId);
+      }
+
+      if (typeof job.detalleId === 'number' && Number.isFinite(job.detalleId)) {
+        switch (job.tipo) {
+          case 'preventivo':
+            preventivoIds.add(job.detalleId);
+            break;
+          case 'correctivo':
+            correctivoIds.add(job.detalleId);
+            break;
+          case 'alistamiento':
+            alistamientoIds.add(job.detalleId);
+            break;
+          case 'autorizacion':
+            autorizacionIds.add(job.detalleId);
+            break;
+          default:
+            break;
+        }
+      }
+    }
+
+    const [
+      mantenimientos,
+      preventivos,
+      correctivos,
+      alistamientos,
+      autorizaciones,
+      detallesActividades
+    ] = await Promise.all([
+      mantenimientoIds.size > 0 ? TblMantenimiento.query().whereIn('id', Array.from(mantenimientoIds)) : Promise.resolve([]),
+      preventivoIds.size > 0 ? TblPreventivo.query().whereIn('id', Array.from(preventivoIds)) : Promise.resolve([]),
+      correctivoIds.size > 0 ? TblCorrectivo.query().whereIn('id', Array.from(correctivoIds)) : Promise.resolve([]),
+      alistamientoIds.size > 0 ? TblAlistamiento.query().whereIn('id', Array.from(alistamientoIds)) : Promise.resolve([]),
+      autorizacionIds.size > 0 ? TblAutorizaciones.query().whereIn('id', Array.from(autorizacionIds)) : Promise.resolve([]),
+      alistamientoIds.size > 0 ? TblDetallesAlistamientoActividades.query().whereIn('alistamientoId', Array.from(alistamientoIds)) : Promise.resolve([]),
+    ]);
 
     const mantenimientosPorId = new Map<number, TblMantenimiento>();
     for (const mantenimiento of mantenimientos) {
@@ -1702,10 +1979,103 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
-    return trabajos.map((job) => {
-      const mantenimiento = job.mantenimientoLocalId ? mantenimientosPorId.get(job.mantenimientoLocalId) : undefined;
+    const preventivosPorId = new Map<number, TblPreventivo>();
+    for (const preventivo of preventivos) {
+      if (typeof preventivo.id === 'number') {
+        preventivosPorId.set(preventivo.id, preventivo);
+      }
+    }
 
-      return {
+    const correctivosPorId = new Map<number, TblCorrectivo>();
+    for (const correctivo of correctivos) {
+      if (typeof correctivo.id === 'number') {
+        correctivosPorId.set(correctivo.id, correctivo);
+      }
+    }
+
+    const alistamientosPorId = new Map<number, TblAlistamiento>();
+    for (const alistamiento of alistamientos) {
+      if (typeof alistamiento.id === 'number') {
+        alistamientosPorId.set(alistamiento.id, alistamiento);
+      }
+    }
+
+    const autorizacionesPorId = new Map<number, TblAutorizaciones>();
+    for (const autorizacion of autorizaciones) {
+      if (typeof autorizacion.id === 'number') {
+        autorizacionesPorId.set(autorizacion.id, autorizacion);
+      }
+    }
+
+    const actividadesPorAlistamiento = new Map<number, Array<{ id: number; estado: boolean }>>();
+    for (const detalle of detallesActividades) {
+      if (typeof detalle.alistamientoId === 'number') {
+        const lista = actividadesPorAlistamiento.get(detalle.alistamientoId) ?? [];
+        lista.push({ id: detalle.actividadId, estado: detalle.estado });
+        actividadesPorAlistamiento.set(detalle.alistamientoId, lista);
+      }
+    }
+
+    const jobsParaActualizar: TblMantenimientoJob[] = [];
+    const respuesta: any[] = [];
+
+    for (const job of trabajos) {
+      const mantenimientoModelo = job.mantenimientoLocalId ? mantenimientosPorId.get(job.mantenimientoLocalId) : undefined;
+      const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+
+      let detalleModelo: TblPreventivo | TblCorrectivo | TblAlistamiento | TblAutorizaciones | undefined;
+      switch (job.tipo) {
+        case 'preventivo':
+          detalleModelo = job.detalleId ? preventivosPorId.get(job.detalleId) : undefined;
+          break;
+        case 'correctivo':
+          detalleModelo = job.detalleId ? correctivosPorId.get(job.detalleId) : undefined;
+          break;
+        case 'alistamiento':
+          detalleModelo = job.detalleId ? alistamientosPorId.get(job.detalleId) : undefined;
+          break;
+        case 'autorizacion':
+          detalleModelo = job.detalleId ? autorizacionesPorId.get(job.detalleId) : undefined;
+          break;
+        default:
+          detalleModelo = undefined;
+          break;
+      }
+
+      const procesado = this.jobEstaProcesado(job, mantenimientoModelo, detalleModelo ?? null);
+
+      if (procesado && job.estado === 'fallido') {
+        job.merge({ estado: 'procesado', ultimoError: null, siguienteIntento: this.getColombiaDateTime() });
+        jobsParaActualizar.push(job);
+        if (estadoObjetivo === 'fallido') {
+          continue;
+        }
+      }
+
+      const mantenimientoJson = this.construirMantenimientoRespuesta(job, mantenimientoModelo ?? null);
+      let detalleJson = this.construirDetalleRespuesta(job, mantenimientoModelo ?? null, detalleModelo ?? null, payload);
+
+      const esAlistamiento = job.tipo === 'alistamiento' || (job.tipo === 'base' && (mantenimientoModelo?.tipoId ?? payload.tipoId) === 3);
+
+      if (esAlistamiento) {
+        const alistamientoId = job.tipo === 'alistamiento'
+          ? detalleModelo?.id ?? null
+          : job.detalleId ?? (mantenimientoModelo?.id ?? null);
+        const actividadesRegistradas = alistamientoId ? actividadesPorAlistamiento.get(alistamientoId) : undefined;
+        const actividades = actividadesRegistradas && actividadesRegistradas.length > 0
+          ? actividadesRegistradas
+          : this.normalizarActividades(job.payload?.actividades ?? []);
+
+        if (detalleJson) {
+          detalleJson.actividades = actividades;
+        } else if (actividades.length > 0) {
+          detalleJson = { actividades };
+        }
+      }
+
+      const datosCompletos = this.construirDatosCompletos(job, mantenimientoModelo ?? null, detalleJson);
+
+      respuesta.push({
         id: job.id,
         tipo: job.tipo,
         estado: job.estado,
@@ -1719,18 +2089,17 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         vigiladoId: job.vigiladoId,
         usuarioDocumento: job.usuarioDocumento,
         payload: job.payload ?? null,
-        mantenimiento: mantenimiento
-          ? {
-              id: mantenimiento.id,
-              placa: mantenimiento.placa,
-              tipoId: mantenimiento.tipoId,
-              estado: mantenimiento.estado,
-              procesado: mantenimiento.procesado,
-              mantenimientoId: mantenimiento.mantenimientoId,
-            }
-          : null,
-      };
-    });
+        mantenimiento: mantenimientoJson,
+        detalle: detalleJson,
+        datosCompletos,
+      });
+    }
+
+    if (jobsParaActualizar.length > 0) {
+      await Promise.all(jobsParaActualizar.map((job) => job.save()));
+    }
+
+    return respuesta;
   }
 
   async reintentarTrabajoFallido(
