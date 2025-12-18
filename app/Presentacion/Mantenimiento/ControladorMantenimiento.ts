@@ -52,7 +52,7 @@ export default class ControladorMantenimiento {
   private async leerRegistrosDesdeExcel(
     archivo: MultipartFileContract,
     columnasRequeridas?: Array<{ nombre: string; descripcion?: string }>
-  ): Promise<any[]> {
+  ): Promise<{ registros: any[]; errores: string[]; totalFilas: number }> {
     const workbook = new ExcelJS.Workbook();
     if (archivo.tmpPath) {
       await workbook.xlsx.readFile(archivo.tmpPath);
@@ -63,7 +63,7 @@ export default class ControladorMantenimiento {
 
     const worksheet = workbook.worksheets[0];
     if (!worksheet) {
-      return [];
+      return { registros: [], errores: [], totalFilas: 0 };
     }
 
     const headerRow = worksheet.getRow(1);
@@ -72,14 +72,15 @@ export default class ControladorMantenimiento {
       .map((valor) => (typeof valor === 'number' ? String(valor) : valor))
       .filter((valor) => valor);
 
-    if (columnasRequeridas && columnasRequeridas.length > 0) {
-      const headersNormalizados = new Map<string, string>(
-        headers.map((valor) => {
-          const original = String(valor).trim();
-          return [original.toLowerCase(), original];
-        })
-      );
+    const headersNormalizados = new Map<string, string>();
+    headers.forEach((valor) => {
+      const original = String(valor).trim();
+      if (original) {
+        headersNormalizados.set(original.toLowerCase(), original);
+      }
+    });
 
+    if (columnasRequeridas && columnasRequeridas.length > 0) {
       const faltantes = columnasRequeridas.filter((columna) => {
         const llave = columna.nombre.trim().toLowerCase();
         return !headersNormalizados.has(llave);
@@ -102,7 +103,19 @@ export default class ControladorMantenimiento {
       }
     }
 
+    const columnasParaValidar = columnasRequeridas
+      ? columnasRequeridas.map((columna) => {
+          const llave = columna.nombre.trim().toLowerCase();
+          return {
+            descriptor: columna,
+            encabezado: headersNormalizados.get(llave) ?? columna.nombre,
+          };
+        })
+      : [];
+
     const registros: any[] = [];
+    const erroresFilas: string[] = [];
+    let totalFilas = 0;
 
     worksheet.eachRow((fila, numeroFila) => {
       if (numeroFila === 1) {
@@ -123,11 +136,36 @@ export default class ControladorMantenimiento {
 
       const tieneDatos = Object.values(registro).some((valor) => valor !== null && valor !== undefined && String(valor).trim() !== '');
       if (tieneDatos) {
+        totalFilas += 1;
+        if (columnasParaValidar.length > 0) {
+          const faltantesEnFila: string[] = [];
+          for (const { descriptor, encabezado } of columnasParaValidar) {
+            const claveRegistro = encabezado ?? descriptor.nombre;
+            const valor = registro[claveRegistro];
+            const esVacio =
+              valor === null ||
+              valor === undefined ||
+              (typeof valor === 'string' && valor.trim() === '');
+            if (esVacio) {
+              faltantesEnFila.push(
+                descriptor.descripcion
+                  ? `${descriptor.nombre} (${descriptor.descripcion})`
+                  : descriptor.nombre
+              );
+            }
+          }
+
+          if (faltantesEnFila.length > 0) {
+            erroresFilas.push(`Fila ${numeroFila}: ${faltantesEnFila.join(', ')}`);
+            return;
+          }
+        }
+
         registros.push(registro);
       }
     });
 
-    return registros;
+    return { registros, errores: erroresFilas, totalFilas };
   }
 
   private normalizarValorExcel(clave: string, celda: ExcelJS.Cell): any {
@@ -260,6 +298,47 @@ export default class ControladorMantenimiento {
     }
 
     return null;
+  }
+
+  private construirResumen(total: number, exitosos: number, errores: string[] = []): { total: number; exitosos: number; errores: string[] } {
+    return {
+      total,
+      exitosos,
+      errores,
+    };
+  }
+
+  private normalizarErroresResumen(errores: any[]): string[] {
+    return errores.map((error) => {
+      if (typeof error === 'string') {
+        return error;
+      }
+
+      if (error && typeof error === 'object') {
+        const indice = typeof error.indice === 'number' ? error.indice + 1 : undefined;
+        const mensaje = typeof error.mensaje === 'string' && error.mensaje.trim() !== ''
+          ? error.mensaje
+          : typeof error.error === 'string' && error.error.trim() !== ''
+            ? error.error
+            : JSON.stringify(error);
+
+        if (indice !== undefined) {
+          return `Registro ${indice}: ${mensaje}`;
+        }
+
+        return mensaje;
+      }
+
+      return String(error);
+    });
+  }
+
+  private formatearResumen(resumen: { total?: number; exitosos?: number; errores?: any[] } | null | undefined): { total: number; exitosos: number; errores: string[] } {
+    const total = typeof resumen?.total === 'number' ? resumen.total : 0;
+    const exitosos = typeof resumen?.exitosos === 'number' ? resumen.exitosos : 0;
+    const erroresNormalizados = Array.isArray(resumen?.errores) ? this.normalizarErroresResumen(resumen?.errores) : [];
+
+    return this.construirResumen(total, exitosos, erroresNormalizados);
   }
   public async listarPlacas ({ request, response }:HttpContextContract) {
     try {
@@ -752,7 +831,9 @@ export default class ControladorMantenimiento {
     try {
       const registros = request.input('registros');
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+        return response
+          .status(400)
+          .json(this.construirResumen(Array.isArray(registros) ? registros.length : 0, 0, ['Debe proporcionar al menos un registro para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -760,7 +841,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarPreventivoMasivo(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaPreventivo');
@@ -772,10 +853,11 @@ export default class ControladorMantenimiento {
     try {
       const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
       if (!archivo) {
-        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+        return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
       if (!archivo.isValid) {
-        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+        return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
       const columnasRequeridas = [
@@ -790,9 +872,24 @@ export default class ControladorMantenimiento {
         { nombre: 'nombresResponsable', descripcion: 'nombre del responsable del mantenimiento preventivo' },
         { nombre: 'detalleActividades', descripcion: 'descripción detallada del mantenimiento preventivo realizado' }
       ];
-      const registros = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
+      let registrosExcel;
+      try {
+        registrosExcel = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
+      } catch (error: any) {
+        if (error?.status === 400 && typeof error.message === 'string') {
+          return response.status(400).json(this.construirResumen(0, 0, [error.message]));
+        }
+        throw error;
+      }
+
+      const { registros, errores, totalFilas } = registrosExcel;
+
+      if (errores.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, errores));
+      }
+
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+        return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -800,7 +897,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarPreventivoMasivo(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaPreventivoExcel');
@@ -812,7 +909,9 @@ export default class ControladorMantenimiento {
     try {
       const registros = request.input('registros');
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+        return response
+          .status(400)
+          .json(this.construirResumen(Array.isArray(registros) ? registros.length : 0, 0, ['Debe proporcionar al menos un registro para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -820,7 +919,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarCorrectivoMasivo(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaCorrectivo');
@@ -832,10 +931,11 @@ export default class ControladorMantenimiento {
     try {
       const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
       if (!archivo) {
-        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+        return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
       if (!archivo.isValid) {
-        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+        return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
       const columnasRequeridas = [
@@ -850,9 +950,24 @@ export default class ControladorMantenimiento {
         { nombre: 'nombresResponsable', descripcion: 'nombre del responsable del mantenimiento correctivo' },
         { nombre: 'detalleActividades', descripcion: 'descripción detallada del mantenimiento correctivo realizado' }
       ];
-      const registros = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
+      let registrosExcel;
+      try {
+        registrosExcel = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
+      } catch (error: any) {
+        if (error?.status === 400 && typeof error.message === 'string') {
+          return response.status(400).json(this.construirResumen(0, 0, [error.message]));
+        }
+        throw error;
+      }
+
+      const { registros, errores, totalFilas } = registrosExcel;
+
+      if (errores.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, errores));
+      }
+
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+        return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -860,7 +975,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarCorrectivoMasivo(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaCorrectivoExcel');
@@ -872,7 +987,9 @@ export default class ControladorMantenimiento {
     try {
       const registros = request.input('registros');
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+        return response
+          .status(400)
+          .json(this.construirResumen(Array.isArray(registros) ? registros.length : 0, 0, ['Debe proporcionar al menos un registro para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -880,7 +997,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarAlistamientoMasivo(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaAlistamiento');
@@ -892,10 +1009,11 @@ export default class ControladorMantenimiento {
     try {
       const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
       if (!archivo) {
-        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+        return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
       if (!archivo.isValid) {
-        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+        return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
       const columnasRequeridas = [
@@ -910,9 +1028,24 @@ export default class ControladorMantenimiento {
         { nombre: 'detalleActividades', descripcion: 'descripción detallada del alistamiento realizado' },
         { nombre: 'actividades', descripcion: 'lista de actividades realizadas (1,2,3), revisar la hoja de actividades' }
       ];
-      const registros = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
+      let registrosExcel;
+      try {
+        registrosExcel = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
+      } catch (error: any) {
+        if (error?.status === 400 && typeof error.message === 'string') {
+          return response.status(400).json(this.construirResumen(0, 0, [error.message]));
+        }
+        throw error;
+      }
+
+      const { registros, errores, totalFilas } = registrosExcel;
+
+      if (errores.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, errores));
+      }
+
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+        return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -920,7 +1053,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarAlistamientoMasivo(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaAlistamientoExcel');
@@ -932,7 +1065,9 @@ export default class ControladorMantenimiento {
     try {
       const registros = request.input('registros');
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'Debe proporcionar al menos un registro para procesar' });
+        return response
+          .status(400)
+          .json(this.construirResumen(Array.isArray(registros) ? registros.length : 0, 0, ['Debe proporcionar al menos un registro para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -940,7 +1075,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarAutorizacionMasiva(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaAutorizacion');
@@ -952,15 +1087,31 @@ export default class ControladorMantenimiento {
     try {
       const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
       if (!archivo) {
-        return response.status(400).send({ mensaje: 'Debe adjuntar el archivo en el campo "archivo"' });
+        return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
       if (!archivo.isValid) {
-        return response.status(400).send({ mensaje: archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido' });
+        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+        return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
-      const registros = await this.leerRegistrosDesdeExcel(archivo);
+      let registrosExcel;
+      try {
+        registrosExcel = await this.leerRegistrosDesdeExcel(archivo);
+      } catch (error: any) {
+        if (error?.status === 400 && typeof error.message === 'string') {
+          return response.status(400).json(this.construirResumen(0, 0, [error.message]));
+        }
+        throw error;
+      }
+
+      const { registros, errores, totalFilas } = registrosExcel;
+
+      if (errores.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, errores));
+      }
+
       if (!Array.isArray(registros) || registros.length === 0) {
-        return response.status(400).send({ mensaje: 'El archivo no contiene registros para procesar' });
+        return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
       }
 
       const payload = await request.obtenerPayloadJWT();
@@ -968,7 +1119,7 @@ export default class ControladorMantenimiento {
       const idRol = payload.idRol;
 
       const resumen = await this.servicioMantenimiento.guardarAutorizacionMasiva(registros, usuario, idRol);
-      return response.status(202).json(resumen);
+      return response.status(202).json(this.formatearResumen(resumen));
     } catch (error: any) {
       const { documento } = await request.obtenerPayloadJWT();
       await guardarLogError(error, documento ?? '', 'cargaMasivaAutorizacionExcel');
