@@ -10,7 +10,11 @@ export class ServicioUsuario {
 
     async actualizarInformacionUsuario(informacion: PeticionActualizarUsuario, identificacion: string): Promise<Usuario> {
         let usuario = await this.obtenerUsuario(identificacion)
+        //console.log({usuario, informacion});
+
         usuario = this.actualizarInformacion(usuario, informacion)
+        //console.log(usuario);
+
 
         await this.repositorioUsuarios.actualizarUsuario(usuario.id, usuario)
         return usuario
@@ -27,19 +31,27 @@ export class ServicioUsuario {
         return this.repositorioUsuarios.obtenerUsuarioPorRol(rol);
       }
 
-    private actualizarInformacion(
-        usuario: | Usuario,
-        informacion: PeticionActualizarUsuario): Usuario {
-        for (const nuevoDato in informacion) {
-            if (usuario[nuevoDato]) {
-                usuario[nuevoDato] = informacion[nuevoDato]
+        private actualizarInformacion(
+            usuario: Usuario,
+            informacion: PeticionActualizarUsuario
+        ): Usuario {
+            for (const [clave, valor] of Object.entries(informacion)) {
+                if (!Object.prototype.hasOwnProperty.call(usuario, clave)) {
+                    continue;
+                }
+
+                if (valor === undefined) {
+                    continue;
+                }
+
+                (usuario as Record<string, unknown>)[clave] = valor as unknown;
             }
+
+            return usuario
         }
-        return usuario
-    }
 
 
 
-   
+
 
 }
