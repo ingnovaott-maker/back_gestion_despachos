@@ -1,4 +1,5 @@
 import { Exception } from '@adonisjs/core/build/standalone'
+import { DateTime } from 'luxon'
 import { RepositorioNovedadesconductor } from 'App/Dominio/Repositorios/RepositorioNovedadesconductor';
 import TblNovedadesconductor from 'App/Infraestructura/Datos/Entidad/Novedadesconductor';
 import Env from '@ioc:Adonis/Core/Env';
@@ -6,6 +7,76 @@ import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 
 export class RepositorioNovedadesconductorDB implements RepositorioNovedadesconductor {
+  private normalizarTexto(valor: any): string | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    const texto = String(valor).trim();
+    return texto === '' ? null : texto;
+  }
+
+  private normalizarNumero(valor: any): number | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : null;
+    }
+
+    const texto = String(valor).trim();
+    if (texto === '') {
+      return null;
+    }
+
+    const numero = Number(texto);
+    return Number.isFinite(numero) ? numero : null;
+  }
+
+  private normalizarFecha(valor: any): DateTime | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    if (valor instanceof DateTime) {
+      return valor;
+    }
+
+    if (valor instanceof Date) {
+      return DateTime.fromJSDate(valor);
+    }
+
+    if (typeof valor === 'number') {
+      const numero = Number(valor);
+      const desdeMillis = DateTime.fromMillis(numero);
+      if (desdeMillis.isValid) {
+        return desdeMillis;
+      }
+    }
+
+    if (typeof valor === 'string') {
+      const texto = valor.trim();
+      if (texto === '') {
+        return null;
+      }
+
+      const candidatos = [
+        DateTime.fromISO(texto),
+        DateTime.fromFormat(texto, 'yyyy-MM-dd'),
+        DateTime.fromFormat(texto, 'dd/MM/yyyy'),
+      ];
+
+      for (const candidato of candidatos) {
+        if (candidato.isValid) {
+          return candidato;
+        }
+      }
+    }
+
+    return null;
+  }
+
   private async obtenerTokenExterno(): Promise<string> {
     const token = await TokenExterno.get();
     if (!token || !TokenExterno.isVigente()) {
@@ -40,23 +111,33 @@ export class RepositorioNovedadesconductorDB implements RepositorioNovedadescond
         // Validar que exista el token externo
         const tokenExterno = await this.obtenerTokenExterno();
 
+        const numeroIdentificacion = this.normalizarTexto(data.numeroIdentificacion);
+        if (!numeroIdentificacion) {
+          throw new Exception('El número de identificación del conductor es obligatorio', 400);
+        }
+
+        const primerNombre = this.normalizarTexto(data.primerNombreConductor);
+        if (!primerNombre) {
+          throw new Exception('El primer nombre del conductor es obligatorio', 400);
+        }
+
         // 1. Guardar localmente primero
         const novedadConductorDTO = {
-          idNovedad: data.idNovedad,
-          tipoIdentificacionConductor: data.tipoIdentificacionConductor,
-          numeroIdentificacion: data.numeroIdentificacion,
-          primerNombreConductor: data.primerNombreConductor,
-          segundoNombreConductor: data.segundoNombreConductor,
-          primerApellidoConductor: data.primerApellidoConductor,
-          segundoApellidoConductor: data.segundoApellidoConductor,
-          idPruebaAlcoholimetria: data.idPruebaAlcoholimetria,
-          resultadoPruebaAlcoholimetria: data.resultadoPruebaAlcoholimetria,
-          fechaUltimaPruebaAlcoholimetria: data.fechaUltimaPruebaAlcoholimetria,
-          licenciaConduccion: data.licenciaConduccion,
-          idExamenMedico: data.idExamenMedico,
-          fechaUltimoExamenMedico: data.fechaUltimoExamenMedico,
-          observaciones: data.observaciones,
-          fechaVencimientoLicencia: data.fechaVencimientoLicencia,
+          idNovedad: this.normalizarNumero(data.idNovedad) ?? null,
+          tipoIdentificacionConductor: this.normalizarTexto(data.tipoIdentificacionConductor),
+          numeroIdentificacion,
+          primerNombreConductor: primerNombre,
+          segundoNombreConductor: this.normalizarTexto(data.segundoNombreConductor),
+          primerApellidoConductor: this.normalizarTexto(data.primerApellidoConductor),
+          segundoApellidoConductor: this.normalizarTexto(data.segundoApellidoConductor),
+          idPruebaAlcoholimetria: this.normalizarTexto(data.idPruebaAlcoholimetria),
+          resultadoPruebaAlcoholimetria: this.normalizarTexto(data.resultadoPruebaAlcoholimetria),
+          fechaUltimaPruebaAlcoholimetria: this.normalizarFecha(data.fechaUltimaPruebaAlcoholimetria),
+          licenciaConduccion: this.normalizarTexto(data.licenciaConduccion),
+          idExamenMedico: this.normalizarTexto(data.idExamenMedico),
+          fechaUltimoExamenMedico: this.normalizarFecha(data.fechaUltimoExamenMedico),
+          observaciones: this.normalizarTexto(data.observaciones),
+          fechaVencimientoLicencia: this.normalizarFecha(data.fechaVencimientoLicencia),
           estado: true,
           procesado: false
         };

@@ -1,4 +1,5 @@
 import { Exception } from '@adonisjs/core/build/standalone'
+import { DateTime } from 'luxon'
 import { RepositorioNovedadesvehiculo } from 'App/Dominio/Repositorios/RepositorioNovedadesvehiculo';
 import TblNovedadesvehiculo from 'App/Infraestructura/Datos/Entidad/Novedadesvehiculo';
 import Env from '@ioc:Adonis/Core/Env';
@@ -6,6 +7,73 @@ import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 
 export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehiculo {
+  private normalizarTexto(valor: any): string | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    const texto = String(valor).trim();
+    return texto === '' ? null : texto;
+  }
+
+  private normalizarNumero(valor: any): number | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : null;
+    }
+
+    const texto = String(valor).trim();
+    if (texto === '') {
+      return null;
+    }
+
+    const numero = Number(texto);
+    return Number.isFinite(numero) ? numero : null;
+  }
+
+  private normalizarFecha(valor: any): DateTime | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    if (valor instanceof DateTime) {
+      return valor;
+    }
+
+    if (valor instanceof Date) {
+      return DateTime.fromJSDate(valor);
+    }
+
+    if (typeof valor === 'number') {
+      const desdeMillis = DateTime.fromMillis(valor);
+      return desdeMillis.isValid ? desdeMillis : null;
+    }
+
+    if (typeof valor === 'string') {
+      const texto = valor.trim();
+      if (texto === '') {
+        return null;
+      }
+
+      const candidatos = [
+        DateTime.fromISO(texto),
+        DateTime.fromFormat(texto, 'yyyy-MM-dd'),
+        DateTime.fromFormat(texto, 'dd/MM/yyyy'),
+      ];
+
+      for (const candidato of candidatos) {
+        if (candidato.isValid) {
+          return candidato;
+        }
+      }
+    }
+
+    return null;
+  }
+
   private async obtenerTokenExterno(): Promise<string> {
     const token = await TokenExterno.get();
     if (!token || !TokenExterno.isVigente()) {
@@ -40,29 +108,34 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
         // Validar que exista el token externo
         const tokenExterno = await this.obtenerTokenExterno();
 
+        const placa = this.normalizarTexto(data.placa);
+        if (!placa) {
+          throw new Exception('La placa es requerida para registrar la novedad de vehículo', 400);
+        }
+
         // 1. Guardar localmente primero
         const novedadVehiculoDTO = {
-          idNovedad: data.idNovedad,
-          placa: data.placa,
-          soat: data.soat,
-          fechaVencimientoSoat: data.fechaVencimientoSoat,
-          revisionTecnicoMecanica: data.revisionTecnicoMecanica,
-          fechaRevisionTecnicoMecanica: data.fechaRevisionTecnicoMecanica,
-          idPolizas: data.idPolizas,
-          tipoPoliza: data.tipoPoliza,
-          tarjetaOperacion: data.tarjetaOperacion,
-          fechaVencimientoTarjetaOperacion: data.fechaVencimientoTarjetaOperacion,
-          idMatenimientoPreventivo: data.idMatenimientoPreventivo,
-          fechaMantenimientoPreventivo: data.fechaMantenimientoPreventivo,
-          idProtocoloAlistamientodiario: data.idProtocoloAlistamientodiario,
-          fechaProtocoloAlistamientodiario: data.fechaProtocoloAlistamientodiario,
-          observaciones: data.observaciones,
-          clase: data.clase,
-          nivelServicio: data.nivelServicio,
-          idPolizaContractual: data.idPolizaContractual,
-          idPolizaExtracontractual: data.idPolizaExtracontractual,
-          vigenciaContractual: data.vigenciaContractual,
-          vigenciaExtracontractual: data.vigenciaExtracontractual,
+          idNovedad: this.normalizarNumero(data.idNovedad) ?? null,
+          placa,
+          soat: this.normalizarTexto(data.soat),
+          fechaVencimientoSoat: this.normalizarFecha(data.fechaVencimientoSoat),
+          revisionTecnicoMecanica: this.normalizarTexto(data.revisionTecnicoMecanica),
+          fechaRevisionTecnicoMecanica: this.normalizarFecha(data.fechaRevisionTecnicoMecanica),
+          idPolizas: this.normalizarTexto(data.idPolizas),
+          tipoPoliza: this.normalizarTexto(data.tipoPoliza),
+          tarjetaOperacion: this.normalizarTexto(data.tarjetaOperacion),
+          fechaVencimientoTarjetaOperacion: this.normalizarFecha(data.fechaVencimientoTarjetaOperacion),
+          idMatenimientoPreventivo: this.normalizarTexto(data.idMatenimientoPreventivo),
+          fechaMantenimientoPreventivo: this.normalizarFecha(data.fechaMantenimientoPreventivo),
+          idProtocoloAlistamientodiario: this.normalizarTexto(data.idProtocoloAlistamientodiario),
+          fechaProtocoloAlistamientodiario: this.normalizarFecha(data.fechaProtocoloAlistamientodiario),
+          observaciones: this.normalizarTexto(data.observaciones),
+          clase: this.normalizarNumero(data.clase) ?? null,
+          nivelServicio: this.normalizarNumero(data.nivelServicio) ?? null,
+          idPolizaContractual: this.normalizarTexto(data.idPolizaContractual),
+          idPolizaExtracontractual: this.normalizarTexto(data.idPolizaExtracontractual),
+          vigenciaContractual: this.normalizarFecha(data.vigenciaContractual)?.toJSDate() ?? null,
+          vigenciaExtracontractual: this.normalizarFecha(data.vigenciaExtracontractual)?.toJSDate() ?? null,
           estado: true,
           procesado: false
         };
