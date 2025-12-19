@@ -771,19 +771,43 @@ export default class ControladorMantenimiento {
       const { documento: usuario, idRol } = payloadJWT;
 
       const body = request.body() || {};
-      let opciones: { payload?: Record<string, any> | null } | undefined;
+      const { accion } = body ?? {};
+      const accionesPermitidas = new Set(['reprogramar', 'actualizar', 'marcarProcesado']);
 
+      if (accion && typeof accion !== 'string') {
+        return response.status(400).send({ mensaje: 'La acción debe ser una cadena válida' });
+      }
+
+      if (accion && !accionesPermitidas.has(accion)) {
+        return response.status(400).send({ mensaje: 'La acción indicada no es válida' });
+      }
+
+      let overridePayload: Record<string, any> | null | undefined = undefined;
+      let incluirPayload = false;
       if (Object.prototype.hasOwnProperty.call(body, 'payload')) {
-        const override = body.payload;
-        if (override !== null && typeof override !== 'object') {
+        incluirPayload = true;
+        overridePayload = body.payload;
+        if (overridePayload !== null && typeof overridePayload !== 'object') {
           return response.status(400).send({ mensaje: 'El payload debe ser un objeto o nulo' });
         }
-        opciones = { payload: override ?? null };
+      }
+
+      const opciones: {
+        accion: 'reprogramar' | 'actualizar' | 'marcarProcesado';
+        payload?: Record<string, any> | null;
+      } = {
+        accion: (accion as 'reprogramar' | 'actualizar' | 'marcarProcesado') ?? 'reprogramar',
+      };
+
+      if (incluirPayload) {
+        opciones.payload = overridePayload ?? null;
       }
 
       const resultado = await this.servicioMantenimiento.reintentarTrabajoFallido(jobId, usuario, idRol, opciones);
       return response.status(200).json(resultado);
     } catch (error: any) {
+      console.log(error);
+
       const documento = payloadJWT?.documento ?? '';
       await guardarLogError(error, documento, 'reintentarTrabajoFallido');
       return this.manejarError(error, response);

@@ -20,6 +20,14 @@ export interface RepositorioMantenimiento{
     guardarAutorizacion(datos:any, usuario:string, idRol:number, opciones?:OpcionesSincronizacion): Promise<any>
     listarActividades(): Promise<any[]>
     listarTrabajosFallidos(usuario:string, idRol:number, filtros?:{ tipo?: string, estado?: string }): Promise<any[]>
-    reintentarTrabajoFallido(jobId:number, usuario:string, idRol:number, opciones?:{ payload?: Record<string, any> | null }): Promise<any>
+        reintentarTrabajoFallido(
+            jobId:number,
+            usuario:string,
+            idRol:number,
+            opciones?:{
+                payload?: Record<string, any> | null,
+                accion?: 'reprogramar' | 'actualizar' | 'marcarProcesado'
+            }
+        ): Promise<any>
 
 }

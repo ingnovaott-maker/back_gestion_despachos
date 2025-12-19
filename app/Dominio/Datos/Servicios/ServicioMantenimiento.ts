@@ -50,7 +50,15 @@ export class ServicioMantenimeinto{
     return this.repositorio.listarTrabajosFallidos(usuario, idRol, filtros)
   }
 
-  async reintentarTrabajoFallido (jobId: number, usuario: string, idRol: number, opciones?: { payload?: Record<string, any> | null }): Promise<any> {
+  async reintentarTrabajoFallido (
+    jobId: number,
+    usuario: string,
+    idRol: number,
+    opciones?: {
+      payload?: Record<string, any> | null,
+      accion?: 'reprogramar' | 'actualizar' | 'marcarProcesado'
+    }
+  ): Promise<any> {
     return this.repositorio.reintentarTrabajoFallido(jobId, usuario, idRol, opciones)
   }
 

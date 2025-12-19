@@ -24,6 +24,7 @@ import type { ModelQueryBuilderContract } from "@ioc:Adonis/Lucid/Orm";
 export class MantenimientoPendienteError extends Error {}
 
 export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
+  private readonly MAX_REINTENTOS = 3;
 
   /**
    * Obtiene la fecha actual ajustada a la zona horaria de Colombia
@@ -483,6 +484,334 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
           ...payload,
         };
     }
+  }
+
+  private async actualizarDatosLocales(job: TblMantenimientoJob, payload?: Record<string, any> | null): Promise<void> {
+    if (!payload || typeof payload !== 'object') {
+      return;
+    }
+
+    switch (job.tipo) {
+      case 'base':
+        await this.actualizarMantenimientoBase(job.mantenimientoLocalId ?? null, payload);
+        break;
+      case 'preventivo':
+        await this.actualizarPreventivoLocal(job.detalleId ?? null, payload);
+        break;
+      case 'correctivo':
+        await this.actualizarCorrectivoLocal(job.detalleId ?? null, payload);
+        break;
+      case 'alistamiento':
+        await this.actualizarAlistamientoLocal(job.detalleId ?? null, payload);
+        break;
+      case 'autorizacion':
+        await this.actualizarAutorizacionLocal(job.detalleId ?? null, payload);
+        break;
+      default:
+        break;
+    }
+  }
+
+  private async actualizarMantenimientoBase(mantenimientoId: number | null, payload: Record<string, any>): Promise<void> {
+    if (!mantenimientoId) {
+      return;
+    }
+
+    const mantenimiento = await TblMantenimiento.find(mantenimientoId);
+    if (!mantenimiento) {
+      return;
+    }
+
+    const campos: Partial<TblMantenimiento> = {};
+
+    if (typeof payload.placa === 'string' && payload.placa.trim() !== '') {
+      campos.placa = payload.placa.trim().toUpperCase();
+    }
+
+    if (typeof payload.tipoId === 'number' && Number.isFinite(payload.tipoId)) {
+      campos.tipoId = payload.tipoId;
+    }
+
+    if (Object.keys(campos).length > 0) {
+      mantenimiento.merge(campos);
+      await mantenimiento.save();
+    }
+  }
+
+  private async actualizarPreventivoLocal(detalleId: number | null, payload: Record<string, any>): Promise<void> {
+    if (!detalleId) {
+      return;
+    }
+
+    const campos: Record<string, any> = {};
+
+    if (typeof payload.fecha === 'string' || payload.fecha instanceof Date) {
+      const fecha = payload.fecha instanceof Date ? payload.fecha : new Date(payload.fecha);
+      if (!Number.isNaN(fecha.getTime())) {
+        campos.fecha = fecha;
+      }
+    }
+
+    if (typeof payload.hora === 'string') {
+      campos.hora = payload.hora.trim();
+    }
+
+    if (typeof payload.nit === 'number' || typeof payload.nit === 'string') {
+      const nit = Number(payload.nit);
+      if (Number.isFinite(nit)) {
+        campos.nit = nit;
+      }
+    }
+
+    if (typeof payload.razonSocial === 'string') {
+      campos.razonSocial = payload.razonSocial.trim();
+    }
+
+    if (typeof payload.tipoIdentificacion === 'number' || typeof payload.tipoIdentificacion === 'string') {
+      const tipoIdentificacion = Number(payload.tipoIdentificacion);
+      if (Number.isFinite(tipoIdentificacion)) {
+        campos.tipoIdentificacion = tipoIdentificacion;
+      }
+    }
+
+    if (typeof payload.numeroIdentificacion === 'number' || typeof payload.numeroIdentificacion === 'string') {
+      const numeroIdentificacion = Number(payload.numeroIdentificacion);
+      if (Number.isFinite(numeroIdentificacion)) {
+        campos.numeroIdentificacion = numeroIdentificacion;
+      }
+    }
+
+    if (typeof payload.nombresResponsable === 'string') {
+      campos.nombresResponsable = payload.nombresResponsable.trim();
+    }
+
+    if (typeof payload.detalleActividades === 'string') {
+      campos.detalleActividades = payload.detalleActividades.trim();
+    }
+
+    if (typeof payload.placa === 'string' && payload.placa.trim() !== '') {
+      campos.placa = payload.placa.trim().toUpperCase();
+    }
+
+    if (Object.keys(campos).length > 0) {
+      await TblPreventivo.query().where('id', detalleId).update(campos);
+    }
+  }
+
+  private async actualizarCorrectivoLocal(detalleId: number | null, payload: Record<string, any>): Promise<void> {
+    if (!detalleId) {
+      return;
+    }
+
+    const campos: Record<string, any> = {};
+
+    if (typeof payload.fecha === 'string' || payload.fecha instanceof Date) {
+      const fecha = payload.fecha instanceof Date ? payload.fecha : new Date(payload.fecha);
+      if (!Number.isNaN(fecha.getTime())) {
+        campos.fecha = fecha;
+      }
+    }
+
+    if (typeof payload.hora === 'string') {
+      campos.hora = payload.hora.trim();
+    }
+
+    if (typeof payload.nit === 'number' || typeof payload.nit === 'string') {
+      const nit = Number(payload.nit);
+      if (Number.isFinite(nit)) {
+        campos.nit = nit;
+      }
+    }
+
+    if (typeof payload.razonSocial === 'string') {
+      campos.razonSocial = payload.razonSocial.trim();
+    }
+
+    if (typeof payload.tipoIdentificacion === 'number' || typeof payload.tipoIdentificacion === 'string') {
+      const tipoIdentificacion = Number(payload.tipoIdentificacion);
+      if (Number.isFinite(tipoIdentificacion)) {
+        campos.tipoIdentificacion = tipoIdentificacion;
+      }
+    }
+
+    if (typeof payload.numeroIdentificacion === 'number' || typeof payload.numeroIdentificacion === 'string') {
+      const numeroIdentificacion = Number(payload.numeroIdentificacion);
+      if (Number.isFinite(numeroIdentificacion)) {
+        campos.numeroIdentificacion = numeroIdentificacion;
+      }
+    }
+
+    if (typeof payload.nombresResponsable === 'string') {
+      campos.nombresResponsable = payload.nombresResponsable.trim();
+    }
+
+    if (typeof payload.detalleActividades === 'string') {
+      campos.detalleActividades = payload.detalleActividades.trim();
+    }
+
+    if (typeof payload.placa === 'string' && payload.placa.trim() !== '') {
+      campos.placa = payload.placa.trim().toUpperCase();
+    }
+
+    if (Object.keys(campos).length > 0) {
+      await TblCorrectivo.query().where('id', detalleId).update(campos);
+    }
+  }
+
+  private async actualizarAlistamientoLocal(detalleId: number | null, payload: Record<string, any>): Promise<void> {
+    if (!detalleId) {
+      return;
+    }
+
+    const campos: Record<string, any> = {};
+
+    if (typeof payload.placa === 'string' && payload.placa.trim() !== '') {
+      campos.placa = payload.placa.trim().toUpperCase();
+    }
+
+    const camposNumericos: Array<{ llave: keyof TblAlistamiento; origen: string }> = [
+      { llave: 'tipoIdentificacionResponsable', origen: 'tipoIdentificacionResponsable' },
+      { llave: 'numeroIdentificacionResponsable', origen: 'numeroIdentificacionResponsable' },
+      { llave: 'tipoIdentificacionConductor', origen: 'tipoIdentificacionConductor' },
+      { llave: 'numeroIdentificacionConductor', origen: 'numeroIdentificacionConductor' },
+    ];
+
+    for (const campo of camposNumericos) {
+      const valor = (payload as any)[campo.origen];
+      if (valor === undefined || valor === null) {
+        continue;
+      }
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) {
+        campos[campo.llave] = numero;
+      }
+    }
+
+    if (typeof payload.nombreResponsable === 'string') {
+      campos.nombreResponsable = payload.nombreResponsable.trim();
+    }
+
+    if (typeof payload.nombresConductor === 'string') {
+      campos.nombresConductor = payload.nombresConductor.trim();
+    }
+
+    if (typeof payload.detalleActividades === 'string') {
+      campos.detalleActividades = payload.detalleActividades.trim();
+    }
+
+    if (Object.keys(campos).length > 0) {
+      await TblAlistamiento.query().where('id', detalleId).update(campos);
+    }
+
+    if (payload.actividades !== undefined) {
+      const actividades = this.normalizarActividades(payload.actividades);
+      await TblDetallesAlistamientoActividades.query().where('alistamientoId', detalleId).delete();
+      if (actividades.length > 0) {
+        await TblDetallesAlistamientoActividades.createMany(
+          actividades.map((actividad) => ({
+            alistamientoId: detalleId,
+            actividadId: actividad.id,
+            estado: actividad.estado,
+          }))
+        );
+      }
+    }
+  }
+
+  private async actualizarAutorizacionLocal(detalleId: number | null, payload: Record<string, any>): Promise<void> {
+    if (!detalleId) {
+      return;
+    }
+
+    const campos: Record<string, any> = {};
+    if (typeof payload.fechaViaje === 'string' || payload.fechaViaje instanceof Date) {
+      const fecha = payload.fechaViaje instanceof Date ? payload.fechaViaje : new Date(payload.fechaViaje);
+      if (!Number.isNaN(fecha.getTime())) {
+        campos.fechaViaje = fecha;
+      }
+    }
+
+    const camposTexto = [
+      'origen',
+      'destino',
+      'nombresApellidosNna',
+      'situacionDiscapacidad',
+      'perteneceComunidadEtnica',
+      'nombresApellidosOtorgante',
+      'correoElectronicoOtorgante',
+      'direccionFisicaOtorgante',
+      'nombresApellidosAutorizadoViajar',
+      'direccionFisicaAutorizadoViajar',
+      'nombresApellidosAutorizadoRecoger',
+      'direccionFisicaAutorizadoRecoger',
+      'copiaAutorizacionViajeNombreOriginal',
+      'copiaAutorizacionViajeDocumento',
+      'copiaAutorizacionViajeRuta',
+      'copiaDocumentoParentescoNombreOriginal',
+      'copiaDocumentoParentescoDocumento',
+      'copiaDocumentoParentescoRuta',
+      'copiaDocumentoIdentidadAutorizadoNombreOriginal',
+      'copiaDocumentoIdentidadAutorizadoDocumento',
+      'copiaDocumentoIdentidadAutorizadoRuta',
+      'copiaConstanciaEntregaNombreOriginal',
+      'copiaConstanciaEntregaDocumento',
+      'copiaConstanciaEntregaRuta',
+    ];
+
+    for (const campo of camposTexto) {
+      const valor = (payload as any)[campo];
+      if (typeof valor === 'string') {
+        campos[campo] = valor.trim();
+      }
+    }
+
+    const camposNumericos = [
+      'tipoIdentificacionNna',
+      'numeroIdentificacionNna',
+      'tipoDiscapacidad',
+      'tipoPoblacionEtnica',
+      'tipoIdentificacionOtorgante',
+      'numeroIdentificacionOtorgante',
+      'numeroTelefonicoOtorgante',
+      'sexoOtorgante',
+      'generoOtorgante',
+      'calidadActua',
+      'tipoIdentificacionAutorizadoViajar',
+      'numeroIdentificacionAutorizadoViajar',
+      'numeroTelefonicoAutorizadoViajar',
+      'tipoIdentificacionAutorizadoRecoger',
+      'numeroIdentificacionAutorizadoRecoger',
+      'numeroTelefonicoAutorizadoRecoger',
+    ];
+
+    for (const campo of camposNumericos) {
+      const valor = (payload as any)[campo];
+      if (valor === undefined || valor === null) {
+        continue;
+      }
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) {
+        campos[campo] = numero;
+      }
+    }
+
+    if (Object.keys(campos).length > 0) {
+      await TblAutorizaciones.query().where('id', detalleId).update(campos);
+    }
+  }
+
+  private async marcarJobComoProcesado(job: TblMantenimientoJob): Promise<void> {
+    job.estado = 'procesado';
+    job.ultimoError = null;
+    job.siguienteIntento = this.getColombiaDateTime();
+    await job.save();
+  }
+
+  private prepararReprogramacion(job: TblMantenimientoJob): void {
+    job.estado = 'pendiente';
+    job.reintentos = 0;
+    job.ultimoError = null;
+    job.siguienteIntento = this.getColombiaDateTime();
   }
 
   /**
@@ -1908,7 +2237,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     idRol: number,
     filtros?: { tipo?: string; estado?: string }
   ): Promise<any[]> {
-    const estadoObjetivo = (filtros?.estado || 'fallido').trim();
+    const estadoObjetivo = 'fallido';
     const query = TblMantenimientoJob.query()
       .where('tmj_estado', estadoObjetivo)
       .orderBy('tmj_actualizado', 'desc');
@@ -2106,7 +2435,10 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     jobId: number,
     usuario: string,
     idRol: number,
-    opciones?: { payload?: Record<string, any> | null }
+    opciones?: {
+      payload?: Record<string, any> | null,
+      accion?: 'reprogramar' | 'actualizar' | 'marcarProcesado'
+    }
   ): Promise<any> {
     const job = await TblMantenimientoJob.find(jobId);
 
@@ -2120,21 +2452,49 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       throw new Exception('Solo se pueden reprogramar trabajos en estado fallido', 400);
     }
 
-    if (opciones && Object.prototype.hasOwnProperty.call(opciones, 'payload')) {
-      job.payload = opciones.payload ?? null;
+    const accion = opciones?.accion ?? 'reprogramar';
+    const tienePayload = opciones ? Object.prototype.hasOwnProperty.call(opciones, 'payload') : false;
+    const payload = tienePayload ? opciones?.payload ?? null : undefined;
+
+    if (tienePayload) {
+      job.payload = payload ?? null;
+      await this.actualizarDatosLocales(job, payload ?? undefined);
     }
 
-    job.estado = 'pendiente';
-    job.reintentos = 0;
-    job.ultimoError = null;
-    job.siguienteIntento = this.getColombiaDateTime();
-    await job.save();
+    switch (accion) {
+      case 'marcarProcesado':
+        await this.marcarJobComoProcesado(job);
+        return {
+          mensaje: 'Trabajo marcado como procesado',
+          estado: job.estado,
+          jobId: job.id,
+        };
+      case 'actualizar':
+        this.prepararReprogramacion(job);
+        await job.save();
+        return {
+          mensaje: 'Datos actualizados y trabajo reprogramado para sincronización',
+          estado: job.estado,
+          jobId: job.id,
+          siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
+        };
+      case 'reprogramar':
+      default:
+        if (job.reintentos >= this.MAX_REINTENTOS) {
+          await job.save();
+          throw new Exception('El trabajo alcanzó el número máximo de reintentos permitidos. Procese el mantenimiento manualmente.', 409);
+        }
 
-    return {
-      mensaje: 'Trabajo reprogramado para sincronización',
-      jobId: job.id,
-      siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
-    };
+        this.prepararReprogramacion(job);
+        await job.save();
+
+        return {
+          mensaje: 'Trabajo reprogramado para sincronización',
+          estado: job.estado,
+          jobId: job.id,
+          siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
+        };
+    }
   }
 
   async listarPlacasTodas(tipoId: number, vigiladoId: string): Promise<any[]> {
