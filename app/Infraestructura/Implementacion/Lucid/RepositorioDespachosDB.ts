@@ -83,7 +83,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
       const respuesta = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${tokenExterno}`,
-          'documento': nitConsulta,
+          'documento': nitVigilado,
           'token': tokenAutorizacion,
           'Content-Type': 'application/json'
         }
