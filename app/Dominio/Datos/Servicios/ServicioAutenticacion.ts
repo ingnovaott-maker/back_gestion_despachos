@@ -54,6 +54,11 @@ export class ServicioAutenticacion {
     const usuarioVerificado = await this.verificarUsuario(usuario)
     Logger.info(`Usuario ${usuarioVerificado.identificacion} encontrado con rol ${usuarioVerificado.idRol}`)
 
+    if (!usuarioVerificado.estado) {
+      Logger.warn(`Usuario ${usuarioVerificado.identificacion} intenta iniciar sesión estando inactivo`)
+      throw new Exception('Usuario inactivo, contacte al administrador.', 403)
+    }
+
     Logger.info(`Buscando registro de bloqueo para ${usuarioVerificado.identificacion}`)
     let registroBloqueo: RegistroBloqueo
     try {
