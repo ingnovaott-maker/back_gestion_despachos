@@ -70,6 +70,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
     try {
       const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(documento, idRol);
 
+
       const URL_DESPACHOS = Env.get('URL_DESPACHOS');
       const nitConsultaBruto = (typeof nit === 'string' ? nit.trim() : String(nit ?? '')).trim();
       const nitConsulta = nitConsultaBruto !== '' ? nitConsultaBruto : nitVigilado;
@@ -77,7 +78,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
       let url = `${URL_DESPACHOS}/despachos`;
 
       if (nitConsulta && nitConsulta.trim() !== '') {
-        url += `?nit=${encodeURIComponent(nitConsulta)}`;
+        url += `?nit=${encodeURIComponent(nitVigilado)}`;
       }
 
       const respuesta = await axios.get(url, {
