@@ -32,9 +32,13 @@ export default class ControladorDespachos {
     try {
       const payload = await request.obtenerPayloadJWT();
       const documento = payload?.documento || '';
+      const idRol = Number(payload?.idRol);
+      if (!Number.isFinite(idRol)) {
+        throw new Exception('No se pudo determinar el rol del usuario autenticado', 400);
+      }
       const { nit } = request.all();
 
-      const resultado = await this.servicioDespacho.Listar(documento, nit);
+      const resultado = await this.servicioDespacho.Listar(documento, idRol, nit);
 
       return response.status(200).send(resultado);
 

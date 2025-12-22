@@ -27,6 +27,10 @@ export class RegistroBloqueo{
         this._actualizacion = actualizacion ?? DateTime.now()
 	}
 
+    public asignarId(id:number):void{
+        this._id = id
+    }
+
     public elUsuarioEstaBloqueado():boolean{
         return this._bloqueado
     }

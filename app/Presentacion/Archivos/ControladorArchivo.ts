@@ -79,6 +79,8 @@ export default class ControladorArchivo {
       }
       return respuesta.data;
     } catch (error) {
+      console.log(error);
+
       return response.status(500).send({mensaje: 'Error al obtener el archivo'})
     }
 

@@ -8,13 +8,12 @@ import { Usuario } from '../Entidades/Usuario'
 import { Encriptador } from 'App/Dominio/Encriptacion/Encriptador'
 import { RepositorioBloqueoUsuario } from 'App/Dominio/Repositorios/RepositorioBloqueoUsuario'
 import { RegistroBloqueo } from '../Entidades/Usuarios/RegistroBloqueo'
-import { v4 as uuid } from 'uuid'
 import { RepositorioAutorizacion } from 'App/Dominio/Repositorios/RepositorioAutorizacion'
 import { RepositorioUsuario } from 'App/Dominio/Repositorios/RepositorioUsuario'
 import { EnviadorEmail } from 'App/Dominio/Email/EnviadorEmail'
 import { RolDto } from 'App/Presentacion/Autenticacion/Dtos/RolDto'
-import Env from '@ioc:Adonis/Core/Env';
 import { ServicioAutenticacionExterna } from 'App/Dominio/Datos/Servicios/ServicioAutenticacionExterna'
+import Logger from '@ioc:Adonis/Core/Logger'
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno'
 import { RepositorioUsuarioModuloDB } from 'App/Infraestructura/Implementacion/Lucid/RepositorioUsuarioModuloDB'
 
@@ -51,8 +50,50 @@ export class ServicioAutenticacion {
   }
 
   public async iniciarSesion(usuario: string, contrasena: string): Promise<RespuestaInicioSesion> {
+    Logger.info(`Inicio de sesión solicitado para ${usuario}`)
     const usuarioVerificado = await this.verificarUsuario(usuario)
+    Logger.info(`Usuario ${usuarioVerificado.identificacion} encontrado con rol ${usuarioVerificado.idRol}`)
 
+    Logger.info(`Buscando registro de bloqueo para ${usuarioVerificado.identificacion}`)
+    let registroBloqueo: RegistroBloqueo
+    try {
+      registroBloqueo = await this.repositorioBloqueo.obtenerRegistroPorUsuario(usuarioVerificado.identificacion)
+    } catch (error) {
+      Logger.error(`Error consultando registro de bloqueo para ${usuarioVerificado.identificacion}: ${error instanceof Error ? error.message : 'error desconocido'}`)
+      throw new Exception('No fue posible validar el estado del usuario. Intente más tarde.', 500)
+    }
+    if (!registroBloqueo) {
+      Logger.info(`No existía registro de bloqueo para ${usuarioVerificado.identificacion}, creando uno nuevo`)
+      registroBloqueo = await this.crearRegistroDeBloqueo(usuarioVerificado.identificacion)
+    }
+
+    Logger.info(`Estado de bloqueo usuario ${usuarioVerificado.identificacion}: bloqueado=${registroBloqueo.elUsuarioEstaBloqueado()} intentos=${registroBloqueo.intentos}`)
+
+    if (registroBloqueo.elUsuarioEstaBloqueado()) {
+      Logger.warn(`Usuario ${usuarioVerificado.identificacion} bloqueado por intentos fallidos`)
+      throw new Exception('Usuario bloqueado por múltiples intentos fallidos. Contacte al administrador.', 423)
+    }
+
+    Logger.info(`Comparando credenciales para ${usuarioVerificado.identificacion}`)
+    let credencialesValidas: boolean
+    try {
+      credencialesValidas = await this.encriptador.comparar(contrasena, usuarioVerificado.clave)
+      Logger.info(`Resultado validación credenciales para ${usuarioVerificado.identificacion}: ${credencialesValidas}`)
+    } catch (error) {
+      Logger.error(`Fallo al comparar credenciales para ${usuarioVerificado.identificacion}: ${error instanceof Error ? error.message : 'error desconocido'}`)
+      throw error
+    }
+    if (!credencialesValidas) {
+      Logger.warn(`Credenciales inválidas para ${usuarioVerificado.identificacion}. Intentos previos: ${registroBloqueo.intentos}`)
+      await this.manejarIntentoFallido(registroBloqueo)
+      throw new Exception('Credenciales incorrectas, por favor intente recuperar contraseña con su correo', 400)
+    }
+
+    if (registroBloqueo.intentos > 0) {
+      Logger.info(`Reiniciando contador de intentos para ${usuarioVerificado.identificacion}`)
+      registroBloqueo.resetearIntentosFallidos()
+      await this.repositorioBloqueo.actualizarRegistro(registroBloqueo)
+    }
 
     // 1. Autenticación externa obligatoria usando credenciales de entorno
     let tokenExterno: string
@@ -61,7 +102,9 @@ export class ServicioAutenticacion {
       tokenExterno = await servicioExterno.iniciarSesionConEnv()
       // Guardar token globalmente para usos posteriores
       TokenExterno.set(tokenExterno)
+      Logger.info(`Autenticación externa exitosa para ${usuarioVerificado.identificacion}`)
     } catch (error) {
+      Logger.error(`Falla autenticando externamente al usuario ${usuarioVerificado.identificacion}: ${error instanceof Error ? error.message : 'error desconocido'}`)
       // Si falla, no permitir acceso a la plataforma
       throw new Exception('Fallo el inicio de sesión contra el aplicativo externo. Acceso denegado.', 502)
     }
@@ -77,6 +120,7 @@ export class ServicioAutenticacion {
     const repositorioModulos = new RepositorioUsuarioModuloDB()
     const modulos = await repositorioModulos.obtenerModulosDeUsuario(usuarioVerificado.id)
 
+    Logger.info(`Inicio de sesión completado para ${usuarioVerificado.identificacion}`)
     return new RespuestaInicioSesion(
       {
         id: usuarioVerificado.id,

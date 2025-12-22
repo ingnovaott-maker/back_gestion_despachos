@@ -76,6 +76,8 @@ export default class TblUsuarios extends BaseModel {
     usuario.telefono = this.telefono
     usuario.idRol = this.idRol
     usuario.estado = this.estado
+    usuario.clave = this.clave
+    usuario.claveTemporal = this.claveTemporal
     // Incluir campos necesarios para validaciones de autenticación
     usuario.tokenAutorizado = this.tokenAutorizado
     usuario.administrador = this.administrador

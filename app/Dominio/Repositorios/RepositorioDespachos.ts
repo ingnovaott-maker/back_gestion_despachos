@@ -1,5 +1,5 @@
 export interface RepositorioDespachos{
-    Listar(documento: string, nit?: string):Promise<any>
+    Listar(documento: string, idRol: number, nit?: string):Promise<any>
     Listados(nit: string, page:number, numero_items:number):Promise<any>
     Crear(data:any):Promise<any>
     Edita(id:number, data:any):Promise<any>

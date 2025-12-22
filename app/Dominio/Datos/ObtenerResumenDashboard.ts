@@ -1,13 +1,36 @@
 import Database from '@ioc:Adonis/Lucid/Database'
 import { DashboardResumenDto, DashboardLogMantenimientoDto } from 'App/Dominio/Dto/DashboardDto'
 import { RepositorioMantenimiento } from '../Repositorios/RepositorioMantenimiento'
+import { Exception } from '@adonisjs/core/build/standalone';
+import TblUsuarios from 'App/Infraestructura/Datos/Entidad/Usuario';
 
 export class ObtenerResumenDashboard {
   constructor(private repositorioMantenimiento?: RepositorioMantenimiento) {}
 
   public async ejecutar(nit?: string, fechaInicio?: string, fechaFin?: string): Promise<DashboardResumenDto[]> {
+
+      let nitVigilado = '';
+      const usuarioDb = await TblUsuarios.query().where('identificacion', nit?.toString()!).first();
+        if (!usuarioDb) {
+          throw new Exception("Usuario no encontrado", 404);
+        }
+
+        if (usuarioDb.idRol === 3) {
+          const identificacionAdministrador = usuarioDb.administrador;
+          if (!identificacionAdministrador) {
+            throw new Exception("Usuario administrador no encontrado", 404);
+          }
+
+          nitVigilado = String(identificacionAdministrador);
+        } else if (usuarioDb.idRol === 2 || usuarioDb.idRol === 1) {
+          nitVigilado = String(usuarioDb.identificacion ?? '');
+        } else {
+          nitVigilado = String(usuarioDb.identificacion ?? '');
+        }
+
+
     // Si se proporciona un NIT específico, filtrar por ese NIT
-    const whereClauseNit = nit ? `AND u.usn_identificacion = '${nit}'` : ''
+    const whereClauseNit = nit ? `AND u.usn_identificacion = '${nitVigilado}'` : ''
 
     // Construir filtros de fecha
     const fechaFilter = fechaInicio && fechaFin

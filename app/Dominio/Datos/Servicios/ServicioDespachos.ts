@@ -5,8 +5,8 @@ import { RepositorioDespachos } from "App/Dominio/Repositorios/RepositorioDespac
 export class ServicioDespachos{
   constructor (private readonly repositorio: RepositorioDespachos) { }
 
-  async Listar(documento: string, nit?: string): Promise<any> {
-    return this.repositorio.Listar(documento, nit);
+  async Listar(documento: string, idRol: number, nit?: string): Promise<any> {
+    return this.repositorio.Listar(documento, idRol, nit);
   }
 
   async Listados(nit: string, page:number, numero_items:number): Promise<any> {

@@ -28,7 +28,7 @@ export class TblRegistroBloqueo extends BaseModel{
     actualizacion:DateTime;
 
     public obtenerRegistroBloqueo():RegistroBloqueo{
-        return new RegistroBloqueo(
+        const registro = new RegistroBloqueo(
            this.identificacion,
            this.intentos,
            this.bloqueado,
@@ -36,6 +36,8 @@ export class TblRegistroBloqueo extends BaseModel{
            this.creacion,
            this.actualizacion
         )
+        registro.asignarId(this.id)
+        return registro
     }
 
     public establecerRegistroBloqueo(registro:RegistroBloqueo):void{
