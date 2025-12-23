@@ -18,28 +18,60 @@ export interface ResultadoProcesamiento {
 export default class MantenimientoQueueService {
   private repositorio = new RepositorioMantenimientoDB()
   private extraerMensajeError (error: any): string {
-    const datosRespuesta = error?.responseData
-    if (datosRespuesta) {
-      if (typeof datosRespuesta === 'object') {
-        const texto = datosRespuesta.mensaje || datosRespuesta.message
-        if (typeof texto === 'string' && texto.trim() !== '') {
-          return texto
-        }
-        try {
-          const serializado = JSON.stringify(datosRespuesta)
-          return serializado.length > 300 ? `${serializado.slice(0, 297)}...` : serializado
-        } catch {
-          // Ignorar error de serialización y continuar con message
-        }
+    const candidatos = [
+      error?.mensajeApi,
+      error?.mensajeInterno,
+      error?.responseData,
+      error?.response?.data,
+      error?.response?.body,
+      error?.original?.response?.data
+    ]
+
+    for (const datos of candidatos) {
+      if (!datos) {
+        continue
       }
-      if (typeof datosRespuesta === 'string' && datosRespuesta.trim() !== '') {
-        return datosRespuesta
+
+      if (typeof datos === 'string' && datos.trim() !== '') {
+        return datos.trim()
+      }
+
+      if (typeof datos === 'object') {
+        const posiblesClaves = [
+          'mensaje',
+          'message',
+          'detail',
+          'error',
+          'errorMessage',
+          'descripcion'
+        ]
+
+        for (const clave of posiblesClaves) {
+          const valor = (datos as Record<string, any>)[clave]
+          if (typeof valor === 'string' && valor.trim() !== '') {
+            return valor.trim()
+          }
+        }
+
+        try {
+          const serializado = JSON.stringify(datos)
+          if (serializado.trim() !== '') {
+            return serializado.length > 300 ? `${serializado.slice(0, 297)}...` : serializado
+          }
+        } catch {
+          // Ignorar error de serialización y continuar con la siguiente fuente
+        }
       }
     }
 
     const mensaje = error?.message
     if (typeof mensaje === 'string' && mensaje.trim() !== '') {
-      return mensaje
+      return mensaje.trim()
+    }
+
+    const descripcion = typeof error === 'string' ? error : error?.toString?.()
+    if (typeof descripcion === 'string' && descripcion.trim() !== '') {
+      return descripcion.trim()
     }
 
     return 'Error desconocido'
@@ -77,14 +109,17 @@ export default class MantenimientoQueueService {
         opciones.logger.info(`Trabajo ${job.id} procesado correctamente (${job.tipo})`)
       } catch (error: any) {
         const mensajeError = this.extraerMensajeError(error)
+        const mensajePrioritario = typeof error?.mensajeApi === 'string' && error.mensajeApi.trim() !== ''
+          ? error.mensajeApi.trim()
+          : mensajeError
 
         if (error instanceof MantenimientoPendienteError) {
-          job.ultimoError = mensajeError
+          job.ultimoError = mensajePrioritario
           job.estado = 'pendiente'
           job.siguienteIntento = DateTime.now().plus({ minutes: 5 })
           await job.save()
           reprogramados += 1
-          opciones.logger.info(`Trabajo ${job.id} reprogramado a la espera del mantenimiento base. Motivo: ${mensajeError}`)
+          opciones.logger.info(`Trabajo ${job.id} reprogramado a la espera del mantenimiento base. Motivo: ${mensajePrioritario}`)
           continue
         }
 
@@ -111,7 +146,7 @@ export default class MantenimientoQueueService {
         }
 
         const esLimite = incrementarReintento()
-        await registrarFallo(mensajeError, esLimite)
+        await registrarFallo(mensajePrioritario, esLimite)
       }
     }
 

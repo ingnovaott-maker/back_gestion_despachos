@@ -1,4 +1,5 @@
 import { OpcionesSincronizacion, RepositorioMantenimiento } from 'App/Dominio/Repositorios/RepositorioMantenimiento';
+import type { Paginable, TrabajoProgramado } from 'App/Dominio/Tipos/Tipos';
 
 export class ServicioMantenimeinto{
   constructor (private repositorio: RepositorioMantenimiento) { }
@@ -48,6 +49,54 @@ export class ServicioMantenimeinto{
 
   async listarTrabajosFallidos (usuario: string, idRol: number, filtros?: { tipo?: string, estado?: string }): Promise<any[]> {
     return this.repositorio.listarTrabajosFallidos(usuario, idRol, filtros)
+  }
+
+  async listarTrabajosProgramados (
+    usuario: string,
+    idRol: number,
+    filtros?: {
+      estado?: string
+      tipo?: string
+      placa?: string
+      vin?: string
+      usuario?: string
+      proveedor?: string
+      sincronizacionEstado?: string
+    },
+    pagina?: number,
+    limite?: number,
+    orden?: {
+      campo?: string
+      direccion?: 'asc' | 'desc'
+    }
+  ): Promise<Paginable<TrabajoProgramado>> {
+    return this.repositorio.listarTrabajosProgramados(usuario, idRol, filtros, pagina, limite, orden)
+  }
+
+  async listarTrabajosProgramados (
+    usuario: string,
+    idRol: number,
+    filtros?: {
+      estado?: string
+      tipo?: string
+      placa?: string
+      vin?: string
+      usuario?: string
+      proveedor?: string
+      sincronizacionEstado?: string
+    },
+    pagina?: number,
+    limite?: number,
+    orden?: {
+      campo?: string
+      direccion?: 'asc' | 'desc'
+    }
+  ): Promise<Paginable<TrabajoProgramado>> {
+    return this.repositorio.listarTrabajosProgramados(usuario, idRol, filtros, pagina, limite, orden)
+  }
+
+  async obtenerTrabajoProgramado (jobId: number, usuario: string, idRol: number): Promise<any> {
+    return this.repositorio.obtenerTrabajoProgramado(jobId, usuario, idRol)
   }
 
   async reintentarTrabajoFallido (

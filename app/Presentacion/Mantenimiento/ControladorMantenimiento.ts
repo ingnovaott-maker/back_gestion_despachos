@@ -759,6 +759,111 @@ export default class ControladorMantenimiento {
     }
   }
 
+  public async listarTrabajosProgramados ({ request, response }: HttpContextContract) {
+    let payloadJWT: any;
+    try {
+      payloadJWT = await request.obtenerPayloadJWT();
+      const { documento: usuario, idRol } = payloadJWT;
+
+      const {
+        pagina,
+        limite,
+        estado,
+        tipo,
+        placa,
+        vin,
+        usuario: usuarioFiltro,
+        proveedor,
+        sincronizacionEstado,
+        ordenCampo,
+        ordenDireccion,
+      } = request.qs();
+
+      const filtros: {
+        estado?: string
+        tipo?: string
+        placa?: string
+        vin?: string
+        usuario?: string
+        proveedor?: string
+        sincronizacionEstado?: string
+      } = {};
+
+      if (estado) filtros.estado = String(estado);
+      if (tipo) filtros.tipo = String(tipo);
+      if (placa) filtros.placa = String(placa);
+      if (vin) filtros.vin = String(vin);
+      if (usuarioFiltro) filtros.usuario = String(usuarioFiltro);
+      if (proveedor) filtros.proveedor = String(proveedor);
+      if (sincronizacionEstado) filtros.sincronizacionEstado = String(sincronizacionEstado);
+
+      let paginaNumero: number | undefined;
+      if (pagina !== undefined) {
+        paginaNumero = Number(pagina);
+        if (!Number.isInteger(paginaNumero) || paginaNumero < 1) {
+          return response.status(400).send({ mensaje: 'La página debe ser un número entero mayor o igual a 1' });
+        }
+      }
+
+      let limiteNumero: number | undefined;
+      if (limite !== undefined) {
+        limiteNumero = Number(limite);
+        if (!Number.isInteger(limiteNumero) || limiteNumero < 1) {
+          return response.status(400).send({ mensaje: 'El límite debe ser un número entero mayor o igual a 1' });
+        }
+      }
+
+      let orden: { campo?: string; direccion?: 'asc' | 'desc' } | undefined;
+      if (ordenCampo || ordenDireccion) {
+        const direccionNormalizada = String(ordenDireccion ?? 'desc').toLowerCase();
+        if (ordenDireccion && direccionNormalizada !== 'asc' && direccionNormalizada !== 'desc') {
+          return response.status(400).send({ mensaje: 'La dirección de orden solo admite los valores asc o desc' });
+        }
+        orden = {
+          campo: ordenCampo ? String(ordenCampo) : undefined,
+          direccion: (direccionNormalizada as 'asc' | 'desc') ?? 'desc',
+        };
+      }
+
+      const resultado = await this.servicioMantenimiento.listarTrabajosProgramados(
+        usuario,
+        idRol,
+        filtros,
+        paginaNumero,
+        limiteNumero,
+        orden,
+      );
+
+      return response.status(200).json(resultado);
+    } catch (error: any) {
+      console.log(error);
+
+      const documento = payloadJWT?.documento ?? '';
+      await guardarLogError(error, documento, 'listarTrabajosProgramados');
+      return this.manejarError(error, response);
+    }
+  }
+
+  public async obtenerTrabajo ({ request, response, params }: HttpContextContract) {
+    let payloadJWT: any;
+    try {
+      const jobId = Number(params.jobId ?? params.id);
+      if (!Number.isInteger(jobId)) {
+        return response.status(400).send({ mensaje: 'El jobId es requerido y debe ser un número entero' });
+      }
+
+      payloadJWT = await request.obtenerPayloadJWT();
+      const { documento: usuario, idRol } = payloadJWT;
+
+      const trabajo = await this.servicioMantenimiento.obtenerTrabajoProgramado(jobId, usuario, idRol);
+      return response.status(200).json(trabajo);
+    } catch (error: any) {
+      const documento = payloadJWT?.documento ?? '';
+      await guardarLogError(error, documento, 'obtenerTrabajo');
+      return this.manejarError(error, response);
+    }
+  }
+
   public async reintentarTrabajoFallido ({ request, response, params }: HttpContextContract) {
     let payloadJWT: any;
     try {

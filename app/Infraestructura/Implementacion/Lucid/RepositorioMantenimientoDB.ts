@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-member-accessibility */
 
-import { Exception, Request } from "@adonisjs/core/build/standalone";
-import { Paginador } from "../../../Dominio/Paginador";
+import { Exception } from "@adonisjs/core/build/standalone";
 import { MapeadorPaginacionDB } from "./MapeadorPaginacionDB";
 import { RepositorioMantenimiento } from "App/Dominio/Repositorios/RepositorioMantenimiento";
 import Env from "@ioc:Adonis/Core/Env";
@@ -11,7 +10,6 @@ import { DateTime } from "luxon";
 import TblUsuarios from "App/Infraestructura/Datos/Entidad/Usuario";
 import TblPreventivo from "App/Infraestructura/Datos/Entidad/Preventivos";
 import TblCorrectivo from "App/Infraestructura/Datos/Entidad/Correctivo";
-import { id } from "date-fns/locale";
 import TblAlistamiento from "App/Infraestructura/Datos/Entidad/Alistamiento";
 import TblActividadesAlistamiento from "App/Infraestructura/Datos/Entidad/ActividadesAlistamiento";
 import TblDetallesAlistamientoActividades from "App/Infraestructura/Datos/Entidad/DetallesAlistamientoActividades";
@@ -20,32 +18,21 @@ import { TokenExterno } from "App/Dominio/Utilidades/TokenExterno";
 import TblMantenimientoJob, { TipoMantenimientoJob } from "App/Infraestructura/Datos/Entidad/MantenimientoJob";
 import { OpcionesSincronizacion } from "App/Dominio/Repositorios/RepositorioMantenimiento";
 import type { ModelQueryBuilderContract } from "@ioc:Adonis/Lucid/Orm";
+import { Paginable, TrabajoProgramado } from "App/Dominio/Tipos/Tipos";
 
 export class MantenimientoPendienteError extends Error {}
 
 export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   private readonly MAX_REINTENTOS = 3;
 
-  /**
-   * Obtiene la fecha actual ajustada a la zona horaria de Colombia
-   * restando las horas configuradas en TIMEZONE_OFFSET_HOURS
-   */
   private getColombiaDate(): Date {
     const offsetHours = parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '5'));
     const now = new Date();
     return new Date(now.getTime() - (offsetHours * 60 * 60 * 1000));
   }
 
-  /**
-   * Obtiene la fecha actual de Colombia como DateTime de Luxon
-   */
   private getColombiaDateTime(): DateTime {
     return DateTime.fromJSDate(this.getColombiaDate());
-  }
-
-  private calcularSiguienteIntento(reintentos: number): DateTime {
-    const minutos = Math.min(60, Math.pow(2, Math.max(0, reintentos)) * 5);
-    return this.getColombiaDateTime().plus({ minutes: minutos });
   }
 
   private async crearJob(params: {
@@ -56,8 +43,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     usuario: string
     rolId: number
     payload?: Record<string, any> | null
-  }) {
-        const job = await TblMantenimientoJob.create({
+  }): Promise<TblMantenimientoJob> {
+    const job = await TblMantenimientoJob.create({
       tipo: params.tipo,
       mantenimientoLocalId: params.mantenimientoLocalId ?? null,
       detalleId: params.detalleId ?? null,
@@ -68,8 +55,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       reintentos: 0,
       siguienteIntento: this.getColombiaDateTime(),
       payload: params.payload ?? null,
-    })
-        return job;
+    });
+    return job;
   }
 
   private async validarTokenExterno(): Promise<string> {
@@ -81,14 +68,26 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   }
 
   private convertirErrorExterno(errorExterno: any, mensajePorDefecto: string): never {
-    console.error(mensajePorDefecto, errorExterno);
-    const exception = new Exception(
-      errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || mensajePorDefecto,
-      errorExterno.response?.status || 500
-    );
-    if (errorExterno.response?.data) {
-      (exception as any).responseData = errorExterno.response.data;
+    const datosRespuesta = errorExterno?.response?.data ?? errorExterno?.data ?? null;
+    const mensajeRespuesta =
+      datosRespuesta?.mensaje ??
+      datosRespuesta?.message ??
+      datosRespuesta?.error ??
+      (Array.isArray(datosRespuesta?.errors) ? datosRespuesta.errors[0]?.message : null) ??
+      null;
+
+    const mensajeFinal = mensajeRespuesta ?? mensajePorDefecto;
+    const status = errorExterno?.response?.status || errorExterno?.status || 500;
+
+    const exception = new Exception(mensajeFinal, status);
+
+    (exception as any).mensajeApi = mensajeRespuesta ?? null;
+    (exception as any).mensajeInterno = mensajeFinal;
+
+    if (datosRespuesta) {
+      (exception as any).responseData = datosRespuesta;
     }
+
     throw exception;
   }
 
@@ -1610,10 +1609,27 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       );
 
       if ((respuesta.status === 200 || respuesta.status === 201) && mantenimiento.id) {
-        const mantenimientoIdExterno = respuesta.data?.id || respuesta.data?.data?.id;
+        const mantenimientoIdExterno = respuesta.data?.id
+          ?? respuesta.data?.mantenimientoId
+          ?? respuesta.data?.mantenimiento_id
+          ?? respuesta.data?.data?.id
+          ?? respuesta.data?.data?.mantenimientoId
+          ?? respuesta.data?.data?.mantenimiento_id;
+
+        if (mantenimientoIdExterno === null || mantenimientoIdExterno === undefined || mantenimientoIdExterno === '') {
+          const mensajeApi = typeof respuesta.data?.mensaje === 'string' && respuesta.data.mensaje.trim() !== ''
+            ? respuesta.data.mensaje.trim()
+            : typeof respuesta.data?.message === 'string' && respuesta.data.message.trim() !== ''
+              ? respuesta.data.message.trim()
+              : 'El servicio externo no devolvió el identificador del mantenimiento';
+          const error = new Exception(mensajeApi, respuesta.data?.codigo || respuesta.status || 500);
+          (error as any).responseData = respuesta.data;
+          throw error;
+        }
+
         await this.marcarMantenimientoProcesado({
           mantenimientoLocalId: mantenimiento.id,
-          mantenimientoIdExterno: mantenimientoIdExterno ?? null
+          mantenimientoIdExterno: Number.isNaN(Number(mantenimientoIdExterno)) ? mantenimientoIdExterno : Number(mantenimientoIdExterno)
         });
       }
     } catch (errorExterno: any) {
@@ -2247,24 +2263,10 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
   }
 
-  async listarTrabajosFallidos(
-    usuario: string,
-    idRol: number,
-    filtros?: { tipo?: string; estado?: string }
+  private async mapearTrabajosConDetalle(
+    trabajos: TblMantenimientoJob[],
+    estadoObjetivo?: string
   ): Promise<any[]> {
-    const estadoObjetivo = 'fallido';
-    const query = TblMantenimientoJob.query()
-      .where('tmj_estado', estadoObjetivo)
-      .orderBy('tmj_actualizado', 'desc');
-
-    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
-
-    if (filtros?.tipo) {
-      query.andWhere('tmj_tipo', filtros.tipo);
-    }
-
-    const trabajos = await query;
-
     if (trabajos.length === 0) {
       return [];
     }
@@ -2313,7 +2315,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       correctivoIds.size > 0 ? TblCorrectivo.query().whereIn('id', Array.from(correctivoIds)) : Promise.resolve([]),
       alistamientoIds.size > 0 ? TblAlistamiento.query().whereIn('id', Array.from(alistamientoIds)) : Promise.resolve([]),
       autorizacionIds.size > 0 ? TblAutorizaciones.query().whereIn('id', Array.from(autorizacionIds)) : Promise.resolve([]),
-      alistamientoIds.size > 0 ? TblDetallesAlistamientoActividades.query().whereIn('alistamientoId', Array.from(alistamientoIds)) : Promise.resolve([]),
+      alistamientoIds.size > 0 ? TblDetallesAlistamientoActividades.query().whereIn('tda_alistamiento_id', Array.from(alistamientoIds)) : Promise.resolve([]),
     ]);
 
     const mantenimientosPorId = new Map<number, TblMantenimiento>();
@@ -2444,6 +2446,132 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
 
     return respuesta;
+  }
+
+  async listarTrabajosProgramados(
+    usuario: string,
+    idRol: number,
+    filtros?: {
+      estado?: string
+      tipo?: string
+      placa?: string
+      vin?: string
+      usuario?: string
+      proveedor?: string
+      sincronizacionEstado?: string
+    },
+    pagina?: number,
+    limite?: number,
+    orden?: {
+      campo?: string
+      direccion?: 'asc' | 'desc'
+    }
+  ): Promise<Paginable<TrabajoProgramado>> {
+    const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
+
+    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
+
+    if (filtros?.estado) {
+      query.andWhere('tmj_estado', filtros.estado);
+    }
+    if (filtros?.tipo) {
+      query.andWhere('tmj_tipo', filtros.tipo);
+    }
+    if (filtros?.placa) {
+      query.andWhere('tmj_placa', filtros.placa);
+    }
+    if (filtros?.vin) {
+      query.andWhere('tmj_vin', filtros.vin);
+    }
+    if (filtros?.usuario) {
+      query.andWhere('tmj_usuario_documento', filtros.usuario);
+    }
+    if (filtros?.proveedor) {
+      query.andWhere('tmj_proveedor_id', filtros.proveedor);
+    }
+
+    if (typeof filtros?.sincronizacionEstado === 'string') {
+      switch (filtros.sincronizacionEstado) {
+        case 'pendiente':
+          query.andWhereNull('tmj_fecha_sincronizacion');
+          break;
+        case 'sincronizado':
+          query.andWhereNotNull('tmj_fecha_sincronizacion');
+          break;
+        case 'error':
+          query.andWhereNotNull('tmj_ultimo_error');
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (orden?.campo) {
+      const direccion = orden.direccion ?? 'desc';
+      const camposPermitidos = new Set([
+        'tmj_creado',
+        'tmj_actualizado',
+        'tmj_siguiente_intento',
+        'tmj_tipo',
+        'tmj_estado',
+        'tmj_reintentos',
+      ]);
+
+      if (camposPermitidos.has(orden.campo)) {
+        query.orderBy(orden.campo, direccion);
+      }
+    }
+
+    const paginaNormalizada = pagina && pagina > 0 ? pagina : 1;
+    const limiteNormalizado = limite && limite > 0 ? limite : 10;
+
+    const trabajosPaginados = await query.paginate(paginaNormalizada, limiteNormalizado);
+
+    const trabajos = trabajosPaginados.all();
+    const trabajosMapeados = await this.mapearTrabajosConDetalle(trabajos);
+
+    return {
+      paginacion: MapeadorPaginacionDB.obtenerPaginacion(trabajosPaginados),
+      datos: trabajosMapeados,
+    };
+  }
+
+  async listarTrabajosFallidos(
+    usuario: string,
+    idRol: number,
+    filtros?: { tipo?: string; estado?: string }
+  ): Promise<any[]> {
+    const estadoObjetivo = 'fallido';
+    const query = TblMantenimientoJob.query()
+      .where('tmj_estado', estadoObjetivo)
+      .orderBy('tmj_actualizado', 'desc');
+
+    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
+
+    if (filtros?.tipo) {
+      query.andWhere('tmj_tipo', filtros.tipo);
+    }
+
+    const trabajos = await query;
+
+    return this.mapearTrabajosConDetalle(trabajos, estadoObjetivo);
+  }
+
+  async obtenerTrabajoProgramado(jobId: number, usuario: string, idRol: number): Promise<any> {
+    const job = await TblMantenimientoJob.find(jobId);
+
+    if (!job) {
+      throw new Exception('Trabajo no encontrado', 404);
+    }
+
+    await this.asegurarPermisoSobreJob(job, usuario, idRol);
+    const resultados = await this.mapearTrabajosConDetalle([job]);
+
+    if (resultados.length === 0) {
+      throw new Exception('No fue posible obtener el detalle del trabajo', 404);
+    }
+
+    return resultados[0];
   }
 
   async reintentarTrabajoFallido(

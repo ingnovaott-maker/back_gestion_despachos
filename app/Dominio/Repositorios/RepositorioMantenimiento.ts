@@ -1,4 +1,6 @@
 
+import type { Paginable, TrabajoProgramado } from "../Tipos/Tipos";
+
 export interface OpcionesSincronizacion {
     diferido?: boolean
     loteId?: string
@@ -20,6 +22,26 @@ export interface RepositorioMantenimiento{
     guardarAutorizacion(datos:any, usuario:string, idRol:number, opciones?:OpcionesSincronizacion): Promise<any>
     listarActividades(): Promise<any[]>
     listarTrabajosFallidos(usuario:string, idRol:number, filtros?:{ tipo?: string, estado?: string }): Promise<any[]>
+    listarTrabajosProgramados(
+        usuario: string,
+        idRol: number,
+        filtros?: {
+            estado?: string
+            tipo?: string
+            placa?: string
+            vin?: string
+            usuario?: string
+            proveedor?: string
+            sincronizacionEstado?: string
+        },
+        pagina?: number,
+        limite?: number,
+        orden?: {
+            campo?: string
+            direccion?: 'asc' | 'desc'
+        }
+    ): Promise<Paginable<TrabajoProgramado>>
+    obtenerTrabajoProgramado(jobId:number, usuario:string, idRol:number): Promise<any>
         reintentarTrabajoFallido(
             jobId:number,
             usuario:string,
