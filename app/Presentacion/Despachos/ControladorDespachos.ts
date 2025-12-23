@@ -5,7 +5,6 @@ import { despachoSchema, despachoMessages, validarFechaHoraDespacho } from './Va
 import CustomException from "App/Exceptions/CustomException";
 import { ValidationException } from '@ioc:Adonis/Core/Validator'
 import { guardarLogError } from 'App/Dominio/guardarLogError';
-import TblUsuarios from 'App/Infraestructura/Datos/Entidad/Usuario';
 import { Exception } from "@adonisjs/core/build/standalone";
 import { ServicioDespachos } from "App/Dominio/Datos/Servicios/ServicioDespachos";
 import { RepositorioDesppachosDB } from "App/Infraestructura/Implementacion/Lucid/RepositorioDespachosDB";
@@ -274,14 +273,13 @@ export default class ControladorDespachos {
 
       const payload = await request.obtenerPayloadJWT();
       const documento = payload?.documento || '';
-      let token = '';
+      const idRol = payload?.idRol;
 
-      const usuarioDb = await TblUsuarios.query().where('identificacion', documento).first();
-      if (usuarioDb) {
-        token = usuarioDb.tokenAutorizado || '';
+      if (!documento || typeof idRol !== 'number') {
+        throw new Exception('Datos de autenticación incompletos', 401);
       }
 
-      const resultado = await this.servicioDespacho.BuscarPorId(id, token, documento);
+      const resultado = await this.servicioDespacho.BuscarPorId(id, documento, idRol);
 
       return response.status(200).send(resultado);
     } catch (error) {
@@ -316,15 +314,14 @@ export default class ControladorDespachos {
       // Obtener credenciales para API externo
       const payload = await request.obtenerPayloadJWT();
       const documento = payload?.documento || '';
-      let token = '';
+      const idRol = payload?.idRol;
 
-      const usuarioDb = await TblUsuarios.query().where('identificacion', documento).first();
-      if (usuarioDb) {
-        token = usuarioDb.tokenAutorizado || '';
+      if (!documento || typeof idRol !== 'number') {
+        throw new Exception('Datos de autenticación incompletos', 401);
       }
 
       const {fechaSalida} = request.all();
-      const resultado = await this.servicioDespacho.BuscarPorPlacaVehiculo(placa, token, documento, fechaSalida);
+      const resultado = await this.servicioDespacho.BuscarPorPlacaVehiculo(placa, documento, idRol, fechaSalida);
 
       return CustomException.success(
         response,

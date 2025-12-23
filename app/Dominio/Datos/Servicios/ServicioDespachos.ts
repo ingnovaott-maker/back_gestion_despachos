@@ -25,12 +25,12 @@ export class ServicioDespachos{
     return this.repositorio.Desactivar(id);
   }
 
-  async BuscarPorId(id: number, token: string, documento: string): Promise<any> {
-    return this.repositorio.BuscarPorId(id, token, documento);
+  async BuscarPorId(id: number, usuario: string, idRol: number): Promise<any> {
+    return this.repositorio.BuscarPorId(id, usuario, idRol);
   }
 
-  async BuscarPorPlacaVehiculo(placa: string, token: string, documento: string, fechaSalida?: string): Promise<any> {
-    return this.repositorio.BuscarPorPlacaVehiculo(placa, token, documento, fechaSalida);
+  async BuscarPorPlacaVehiculo(placa: string, usuario: string, idRol: number, fechaSalida?: string): Promise<any> {
+    return this.repositorio.BuscarPorPlacaVehiculo(placa, usuario, idRol, fechaSalida);
   }
 
 }

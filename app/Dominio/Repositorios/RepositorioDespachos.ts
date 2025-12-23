@@ -4,6 +4,6 @@ export interface RepositorioDespachos{
     Crear(data:any):Promise<any>
     Edita(id:number, data:any):Promise<any>
     Desactivar(id:number):Promise<any>
-    BuscarPorId(id:number, token: string, documento: string):Promise<any>
-    BuscarPorPlacaVehiculo(placa: string, token: string, documento: string, fechaSalida?: string):Promise<any>
+    BuscarPorId(id:number, usuario: string, idRol: number):Promise<any>
+    BuscarPorPlacaVehiculo(placa: string, usuario: string, idRol: number, fechaSalida?: string):Promise<any>
 }

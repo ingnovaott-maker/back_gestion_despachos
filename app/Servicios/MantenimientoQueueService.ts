@@ -17,6 +17,33 @@ export interface ResultadoProcesamiento {
 
 export default class MantenimientoQueueService {
   private repositorio = new RepositorioMantenimientoDB()
+  private extraerMensajeError (error: any): string {
+    const datosRespuesta = error?.responseData
+    if (datosRespuesta) {
+      if (typeof datosRespuesta === 'object') {
+        const texto = datosRespuesta.mensaje || datosRespuesta.message
+        if (typeof texto === 'string' && texto.trim() !== '') {
+          return texto
+        }
+        try {
+          const serializado = JSON.stringify(datosRespuesta)
+          return serializado.length > 300 ? `${serializado.slice(0, 297)}...` : serializado
+        } catch {
+          // Ignorar error de serialización y continuar con message
+        }
+      }
+      if (typeof datosRespuesta === 'string' && datosRespuesta.trim() !== '') {
+        return datosRespuesta
+      }
+    }
+
+    const mensaje = error?.message
+    if (typeof mensaje === 'string' && mensaje.trim() !== '') {
+      return mensaje
+    }
+
+    return 'Error desconocido'
+  }
 
   public async procesarLote (opciones: ProcesarColaOpciones): Promise<ResultadoProcesamiento> {
     const ahora = DateTime.now()
@@ -49,33 +76,42 @@ export default class MantenimientoQueueService {
         procesados += 1
         opciones.logger.info(`Trabajo ${job.id} procesado correctamente (${job.tipo})`)
       } catch (error: any) {
+        const mensajeError = this.extraerMensajeError(error)
+
         if (error instanceof MantenimientoPendienteError) {
+          job.ultimoError = mensajeError
           job.estado = 'pendiente'
           job.siguienteIntento = DateTime.now().plus({ minutes: 5 })
           await job.save()
           reprogramados += 1
-          opciones.logger.info(`Trabajo ${job.id} reprogramado: mantenimiento base pendiente`)
+          opciones.logger.info(`Trabajo ${job.id} reprogramado a la espera del mantenimiento base. Motivo: ${mensajeError}`)
           continue
         }
 
-        job.reintentos = (job.reintentos ?? 0) + 1
-        job.ultimoError = error.message ?? 'Error desconocido'
-
-        if (job.reintentos >= opciones.maxReintentos) {
-          job.estado = 'fallido'
-          job.siguienteIntento = DateTime.now()
-          await job.save()
-          fallidos += 1
-          opciones.logger.error(`Trabajo ${job.id} marcado como fallido tras ${job.reintentos} intentos. Error: ${job.ultimoError}`)
-          continue
+        const registrarFallo = async (mensaje: string, esFalloDefinitivo: boolean) => {
+          job.ultimoError = mensaje
+          if (esFalloDefinitivo) {
+            job.estado = 'fallido'
+            job.siguienteIntento = DateTime.now()
+            await job.save()
+            fallidos += 1
+            opciones.logger.error(`Trabajo ${job.id} marcado como fallido tras ${job.reintentos} intentos. Error: ${mensaje}`)
+          } else {
+            job.estado = 'pendiente'
+            job.siguienteIntento = DateTime.now().plus({ minutes: 5 })
+            await job.save()
+            reprogramados += 1
+            opciones.logger.info(`Trabajo ${job.id} reprogramado para 5 minutos. Intento ${job.reintentos}/${opciones.maxReintentos}. Motivo: ${mensaje}`)
+          }
         }
 
-        const retrasoMinutos = Math.min(60, Math.pow(2, job.reintentos) * 5)
-        job.estado = 'pendiente'
-        job.siguienteIntento = DateTime.now().plus({ minutes: retrasoMinutos })
-        await job.save()
-        reprogramados += 1
-        opciones.logger.info(`Trabajo ${job.id} reintentará en ${retrasoMinutos} minutos. Error: ${job.ultimoError}`)
+        const incrementarReintento = () => {
+          job.reintentos = (job.reintentos ?? 0) + 1
+          return job.reintentos >= opciones.maxReintentos
+        }
+
+        const esLimite = incrementarReintento()
+        await registrarFallo(mensajeError, esLimite)
       }
     }
 

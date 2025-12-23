@@ -109,6 +109,21 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     mantenimiento.merge(campos);
     await mantenimiento.save();
+
+    if (mantenimiento.id) {
+      await TblMantenimientoJob
+        .query()
+        .where('tmj_mantenimiento_local_id', mantenimiento.id)
+        .whereNot('tmj_tipo', 'base')
+        .where('tmj_estado', 'fallido')
+        .where('tmj_ultimo_error', 'El mantenimiento base aún no ha sido sincronizado')
+        .update({
+          tmj_estado: 'pendiente',
+          tmj_reintentos: 0,
+          tmj_ultimo_error: null,
+          tmj_siguiente_intento: DateTime.now().toJSDate()
+        });
+    }
   }
 
   private async restringirTrabajosPorUsuario(

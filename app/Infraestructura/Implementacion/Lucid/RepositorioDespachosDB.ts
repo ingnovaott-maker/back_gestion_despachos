@@ -1,59 +1,17 @@
 import { Exception } from '@adonisjs/core/build/standalone'
 import TblDespacho from 'App/Infraestructura/Datos/Entidad/Despacho';
-import TblUsuarios from 'App/Infraestructura/Datos/Entidad/Usuario';
 import { despachoToDto } from './dto/despacho';
 import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 import { RepositorioDespachos } from 'App/Dominio/Repositorios/RepositorioDespachos';
+import { DatosAutenticacionUsuario, obtenerDatosAutenticacionUsuario } from './AutenticacionUsuarioHelper';
 
 
 
 export class RepositorioDesppachosDB implements RepositorioDespachos {
-  private async obtenerDatosAutenticacion(usuario: string, idRol: number): Promise<{ tokenAutorizacion: string, nitVigilado: string, usuarioId: number }> {
-    let tokenAutorizacion = '';
-    let nitVigilado = '';
-    let usuarioId = 0;
-
-    const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
-
-    if (!usuarioDb) {
-      throw new Exception("Usuario no encontrado", 404);
-    }
-
-    if (idRol === 3) {
-      const identificacionAdministrador = usuarioDb.administrador;
-      if (!identificacionAdministrador) {
-        throw new Exception("Usuario administrador no encontrado", 404);
-      }
-
-      const usuarioAdministrador = await TblUsuarios.query().where('identificacion', identificacionAdministrador).first();
-      if (!usuarioAdministrador) {
-        throw new Exception("Usuario administrador no encontrado", 404);
-      }
-
-      tokenAutorizacion = usuarioAdministrador.tokenAutorizado || '';
-      nitVigilado = String(usuarioAdministrador.identificacion ?? identificacionAdministrador);
-      usuarioId = usuarioAdministrador.id ?? 0;
-    } else if (idRol === 2 || idRol === 1) {
-      tokenAutorizacion = usuarioDb.tokenAutorizado || '';
-      nitVigilado = String(usuarioDb.identificacion ?? '');
-      usuarioId = usuarioDb.id ?? 0;
-    } else {
-      tokenAutorizacion = usuarioDb.tokenAutorizado || '';
-      nitVigilado = String(usuarioDb.identificacion ?? '');
-      usuarioId = usuarioDb.id ?? 0;
-    }
-
-    if (!tokenAutorizacion || tokenAutorizacion.trim() === '') {
-      throw new Exception("Token de autorización no encontrado. Por favor, contacte al administrador.", 400);
-    }
-
-    if (!nitVigilado || nitVigilado.trim() === '') {
-      throw new Exception("No se pudo determinar el identificador del vigilado asociado al usuario", 400);
-    }
-
-    return { tokenAutorizacion, nitVigilado, usuarioId };
+  private async obtenerDatosAutenticacion(usuario: string, idRol: number): Promise<DatosAutenticacionUsuario> {
+    return obtenerDatosAutenticacionUsuario(usuario, idRol);
   }
 
   private async obtenerTokenExterno(): Promise<string> {
@@ -171,18 +129,19 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
       }
   }
 
-  async BuscarPorId(id: number, token: string, documento: string): Promise<any> {
+  async BuscarPorId(id: number, usuario: string, idRol: number): Promise<any> {
     const tokenExterno = await this.obtenerTokenExterno();
 
     try {
+      const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
       const URL_DESPACHOS = Env.get('URL_DESPACHOS');
       const url = `${URL_DESPACHOS}/despachos/${id}`;
 
       const respuesta = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${tokenExterno}`,
-          'token': token,
-          'documento': documento,
+          'token': tokenAutorizacion,
+          'documento': nitVigilado,
           'Content-Type': 'application/json'
         }
       });
@@ -204,10 +163,11 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
     }
   }
 
-  async BuscarPorPlacaVehiculo(placa: string, token: string, documento: string, fechaSalida?: string): Promise<any> {
+  async BuscarPorPlacaVehiculo(placa: string, usuario: string, idRol: number, fechaSalida?: string): Promise<any> {
     const tokenExterno = await this.obtenerTokenExterno();
 
     try {
+      const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
       const URL_DESPACHOS = Env.get('URL_DESPACHOS');
       let url = `${URL_DESPACHOS}/despachos/placa/${placa}`;
 
@@ -218,8 +178,8 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
       const respuesta = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${tokenExterno}`,
-          'token': token,
-          'documento': documento,
+          'token': tokenAutorizacion,
+          'documento': nitVigilado,
           'Content-Type': 'application/json'
         }
       });
