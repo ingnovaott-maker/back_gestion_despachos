@@ -9,7 +9,6 @@ import IdValidator from 'App/Presentacion/Novedades/Validadores/IdValidator'
 import CustomException from "App/Exceptions/CustomException";
 import { ValidationException } from '@ioc:Adonis/Core/Validator'
 import { guardarLogError } from 'App/Dominio/guardarLogError';
-import TblUsuarios from 'App/Infraestructura/Datos/Entidad/Usuario';
 import { Exception } from "@adonisjs/core/build/standalone";
 
 export default class ControladorNovedades {
@@ -68,18 +67,15 @@ export default class ControladorNovedades {
     try {
       const data = request.all();
 
-      // Obtener credenciales para API externo
       const payloadJWT = await request.obtenerPayloadJWT();
       const documento = payloadJWT?.documento || '';
-      let token = '';
+      const idRol = payloadJWT?.idRol;
 
-      // Obtener token del usuario
-      const usuarioDb = await TblUsuarios.query().where('identificacion', documento).first();
-      if (usuarioDb) {
-        token = usuarioDb.tokenAutorizado || '';
+      if (!documento || typeof idRol !== 'number') {
+        throw new Exception('Datos de autenticación incompletos', 401);
       }
 
-      const resultado = await this.servicioNovedades.Crear(data, token, documento);
+      const resultado = await this.servicioNovedades.Crear(data, documento, idRol);
 
       return response.send(resultado);
     } catch (error) {

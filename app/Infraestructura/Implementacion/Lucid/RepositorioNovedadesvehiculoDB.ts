@@ -5,6 +5,7 @@ import TblNovedadesvehiculo from 'App/Infraestructura/Datos/Entidad/Novedadesveh
 import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
+import { obtenerDatosAutenticacionUsuario } from './AutenticacionUsuarioHelper';
 
 export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehiculo {
   private normalizarTexto(valor: any): string | null {
@@ -103,10 +104,11 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
       }
   }
 
-  async Crear(data: any, token: string, documento: string): Promise<any> {
+  async Crear(data: any, usuario: string, idRol: number): Promise<any> {
       try {
         // Validar que exista el token externo
         const tokenExterno = await this.obtenerTokenExterno();
+        const { tokenAutorizacion, nitVigilado } = await obtenerDatosAutenticacionUsuario(usuario, idRol);
 
         const placa = this.normalizarTexto(data.placa);
         if (!placa) {
@@ -151,8 +153,8 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
             {
               headers: {
                 'Authorization': `Bearer ${tokenExterno}`,
-                'token': token,
-                'documento': documento,
+                'token': tokenAutorizacion,
+                'documento': nitVigilado,
                 'Content-Type': 'application/json'
               }
             }

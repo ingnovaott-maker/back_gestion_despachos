@@ -20,9 +20,8 @@ export class ServicioNovedadesconductor{
     return this.repositorio.Listar(obj_filter);
   }
 
-  async Crear(data: any, token: string, documento: string): Promise<any> {
-
-    return this.repositorio.Crear(data, token, documento);
+  async Crear(data: any, usuario: string, idRol: number): Promise<any> {
+    return this.repositorio.Crear(data, usuario, idRol);
   }
 
   async Edita(data: any): Promise<any> {

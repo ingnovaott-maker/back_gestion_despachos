@@ -5,6 +5,7 @@ import TblNovedadesconductor from 'App/Infraestructura/Datos/Entidad/Novedadesco
 import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
+import { obtenerDatosAutenticacionUsuario } from './AutenticacionUsuarioHelper';
 
 export class RepositorioNovedadesconductorDB implements RepositorioNovedadesconductor {
   private normalizarTexto(valor: any): string | null {
@@ -106,10 +107,11 @@ export class RepositorioNovedadesconductorDB implements RepositorioNovedadescond
       }
   }
 
-  async Crear(data: any, token: string, documento: string): Promise<any> {
+  async Crear(data: any, usuario: string, idRol: number): Promise<any> {
       try {
         // Validar que exista el token externo
         const tokenExterno = await this.obtenerTokenExterno();
+        const { tokenAutorizacion, nitVigilado } = await obtenerDatosAutenticacionUsuario(usuario, idRol);
 
         const numeroIdentificacion = this.normalizarTexto(data.numeroIdentificacion);
         if (!numeroIdentificacion) {
@@ -153,8 +155,8 @@ export class RepositorioNovedadesconductorDB implements RepositorioNovedadescond
             {
               headers: {
                 'Authorization': `Bearer ${tokenExterno}`,
-                'token': token,
-                'documento': documento,
+                'token': tokenAutorizacion,
+                'documento': nitVigilado,
                 'Content-Type': 'application/json'
               }
             }

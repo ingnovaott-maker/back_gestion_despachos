@@ -4,6 +4,7 @@ import TblNovedades from 'App/Infraestructura/Datos/Entidad/Novedades';
 import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
+import { obtenerDatosAutenticacionUsuario } from './AutenticacionUsuarioHelper';
 
 export class RepositorioNovedadesDB implements RepositorioNovedades {
   private async obtenerTokenExterno(): Promise<string> {
@@ -36,10 +37,11 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
       }
   }
 
-  async Crear(data: any, token: string, documento: string): Promise<any> {
+  async Crear(data: any, usuario: string, idRol: number): Promise<any> {
       try {
         // Validar que exista el token externo
         const tokenExterno = await this.obtenerTokenExterno();
+        const { tokenAutorizacion, nitVigilado } = await obtenerDatosAutenticacionUsuario(usuario, idRol);
 
         // 1. Guardar localmente primero
         const novedadDTO = {
@@ -51,7 +53,7 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
           horaNovedad: data.horaNovedad,
           nitProveedor: data.nitProveedor,
           fuenteDato: data.fuenteDato,
-          usuarioId: documento,
+          usuarioId: usuario,
           estado: true,
           procesado: false
         };
@@ -67,8 +69,8 @@ export class RepositorioNovedadesDB implements RepositorioNovedades {
             {
               headers: {
                 'Authorization': `Bearer ${tokenExterno}`,
-                'token': token,
-                'documento': documento,
+                'token': tokenAutorizacion,
+                'documento': nitVigilado,
                 'Content-Type': 'application/json'
               }
             }
