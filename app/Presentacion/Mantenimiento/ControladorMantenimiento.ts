@@ -663,7 +663,10 @@ export default class ControladorMantenimiento {
     let payloadJWT: any
     try {
       payloadJWT = await request.obtenerPayloadJWT()
-      const actividades = await this.servicioMantenimiento.listarActividades()
+      const [actividades, tiposIdentificacion] = await Promise.all([
+        this.servicioMantenimiento.listarActividades(),
+        this.servicioMantenimiento.listarTiposIdentificacion()
+      ])
 
       const workbook = new ExcelJS.Workbook()
       const hojaPrincipal = workbook.addWorksheet('alistamiento')
@@ -690,6 +693,15 @@ export default class ControladorMantenimiento {
         hojaActividades.addRow({ id: actividad.id, nombre: actividad.nombre })
       })
 
+      const hojaTiposIdentificacion = workbook.addWorksheet('tipos_identificacion')
+      hojaTiposIdentificacion.columns = [
+        { header: 'codigo', key: 'codigo', width: 16 },
+        { header: 'descripcion', key: 'descripcion', width: 40 }
+      ]
+      tiposIdentificacion.forEach((tipo: any) => {
+        hojaTiposIdentificacion.addRow({ codigo: tipo.codigo, descripcion: tipo.descripcion })
+      })
+
       const buffer = await workbook.xlsx.writeBuffer()
 
       response.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -706,6 +718,7 @@ export default class ControladorMantenimiento {
     let payloadJWT: any
     try {
       payloadJWT = await request.obtenerPayloadJWT()
+      const tiposIdentificacion = await this.servicioMantenimiento.listarTiposIdentificacion()
 
       const workbook = new ExcelJS.Workbook()
       const hojaPrincipal = workbook.addWorksheet('mantenimiento')
@@ -722,6 +735,15 @@ export default class ControladorMantenimiento {
         { header: 'detalleActividades', key: 'detalleActividades', width: 30 }
       ]
       hojaPrincipal.addRow({})
+
+      const hojaTiposIdentificacion = workbook.addWorksheet('tipos_identificacion')
+      hojaTiposIdentificacion.columns = [
+        { header: 'codigo', key: 'codigo', width: 16 },
+        { header: 'descripcion', key: 'descripcion', width: 40 }
+      ]
+      tiposIdentificacion.forEach((tipo: any) => {
+        hojaTiposIdentificacion.addRow({ codigo: tipo.codigo, descripcion: tipo.descripcion })
+      })
 
       const buffer = await workbook.xlsx.writeBuffer()
 
@@ -740,14 +762,17 @@ export default class ControladorMantenimiento {
     try {
       payloadJWT = await request.obtenerPayloadJWT();
       const { documento: usuario, idRol } = payloadJWT;
-      const { tipo, estado } = request.qs();
+      const { tipo, estado, nit } = request.qs();
 
-      const filtros: { tipo?: string; estado?: string } = {};
+      const filtros: { tipo?: string; estado?: string; nit?: string } = {};
       if (tipo) {
         filtros.tipo = String(tipo);
       }
       if (estado) {
         filtros.estado = String(estado);
+      }
+      if (nit) {
+        filtros.nit = String(nit);
       }
 
       const trabajos = await this.servicioMantenimiento.listarTrabajosFallidos(usuario, idRol, filtros);
@@ -775,6 +800,7 @@ export default class ControladorMantenimiento {
         usuario: usuarioFiltro,
         proveedor,
         sincronizacionEstado,
+        nit,
         ordenCampo,
         ordenDireccion,
       } = request.qs();
@@ -787,6 +813,7 @@ export default class ControladorMantenimiento {
         usuario?: string
         proveedor?: string
         sincronizacionEstado?: string
+        nit?: string
       } = {};
 
       if (estado) filtros.estado = String(estado);
@@ -796,6 +823,7 @@ export default class ControladorMantenimiento {
       if (usuarioFiltro) filtros.usuario = String(usuarioFiltro);
       if (proveedor) filtros.proveedor = String(proveedor);
       if (sincronizacionEstado) filtros.sincronizacionEstado = String(sincronizacionEstado);
+      if (nit) filtros.nit = String(nit);
 
       let paginaNumero: number | undefined;
       if (pagina !== undefined) {

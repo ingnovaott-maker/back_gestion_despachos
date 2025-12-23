@@ -2263,6 +2263,25 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
   }
 
+  async listarTiposIdentificacion(): Promise<any[]> {
+    try {
+      const tipos = await this.obtenerParametrica('listar-tipo-identificaciones');
+      if (!Array.isArray(tipos)) {
+        return [];
+      }
+      return tipos.map((tipo: any) => ({
+        codigo: tipo.codigo,
+        descripcion: tipo.descripcion,
+      }));
+    } catch (error: any) {
+      console.log(error);
+      if (error instanceof Exception) {
+        throw error;
+      }
+      throw new Error("No se pudieron obtener los tipos de identificación");
+    }
+  }
+
   private async mapearTrabajosConDetalle(
     trabajos: TblMantenimientoJob[],
     estadoObjetivo?: string
@@ -2489,6 +2508,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     if (filtros?.proveedor) {
       query.andWhere('tmj_proveedor_id', filtros.proveedor);
     }
+    if (filtros?.nit) {
+      query.andWhere('tmj_vigilado_id', filtros.nit);
+    }
 
     if (typeof filtros?.sincronizacionEstado === 'string') {
       switch (filtros.sincronizacionEstado) {
@@ -2539,7 +2561,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   async listarTrabajosFallidos(
     usuario: string,
     idRol: number,
-    filtros?: { tipo?: string; estado?: string }
+    filtros?: { tipo?: string; estado?: string; nit?: string }
   ): Promise<any[]> {
     const estadoObjetivo = 'fallido';
     const query = TblMantenimientoJob.query()
@@ -2550,6 +2572,10 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     if (filtros?.tipo) {
       query.andWhere('tmj_tipo', filtros.tipo);
+    }
+
+    if (filtros?.nit) {
+      query.andWhere('tmj_vigilado_id', filtros.nit);
     }
 
     const trabajos = await query;

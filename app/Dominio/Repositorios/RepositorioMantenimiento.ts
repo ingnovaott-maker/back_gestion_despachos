@@ -21,7 +21,8 @@ export interface RepositorioMantenimiento{
     visualizarAutorizacion(mantenimientoId:number, usuario:string, idRol:number): Promise<any>
     guardarAutorizacion(datos:any, usuario:string, idRol:number, opciones?:OpcionesSincronizacion): Promise<any>
     listarActividades(): Promise<any[]>
-    listarTrabajosFallidos(usuario:string, idRol:number, filtros?:{ tipo?: string, estado?: string }): Promise<any[]>
+    listarTiposIdentificacion(): Promise<any[]>
+    listarTrabajosFallidos(usuario:string, idRol:number, filtros?:{ tipo?: string, estado?: string, nit?: string }): Promise<any[]>
     listarTrabajosProgramados(
         usuario: string,
         idRol: number,
@@ -33,6 +34,7 @@ export interface RepositorioMantenimiento{
             usuario?: string
             proveedor?: string
             sincronizacionEstado?: string
+            nit?: string
         },
         pagina?: number,
         limite?: number,
