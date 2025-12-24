@@ -2490,7 +2490,10 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   ): Promise<Paginable<TrabajoProgramado>> {
     const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
 
-    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
+    const { nitVigilado } = await this.obtenerDatosAutenticacion(filtros?.nit!, idRol);
+
+    await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
+
 
     if (filtros?.estado) {
       query.andWhere('tmj_estado', filtros.estado);
@@ -2505,19 +2508,12 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
       }
     }
-    if (filtros?.vin) {
-      query.andWhere('tmj_vin', filtros.vin);
-    }
-    if (filtros?.usuario) {
-      query.andWhere('tmj_usuario_documento', filtros.usuario);
-    }
-    if (filtros?.proveedor) {
-      query.andWhere('tmj_proveedor_id', filtros.proveedor);
-    }
-    if (filtros?.nit) {
-      query.andWhere('tmj_vigilado_id', filtros.nit);
-    }
 
+
+    /* if (filtros?.nit) {
+      query.andWhere('tmj_usuario_documento', nitVigilado);
+    }
+ */
 
     if (filtros?.fecha) {
       const fechaFiltro = DateTime.fromISO(String(filtros.fecha));
