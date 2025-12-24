@@ -528,6 +528,188 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
   }
 
+  private fusionarPlanos(base: any, complemento: any): any {
+    const esObjetoPlano = (valor: any) => Boolean(valor) && typeof valor === 'object' && !Array.isArray(valor);
+
+    if (esObjetoPlano(base) || esObjetoPlano(complemento)) {
+      return {
+        ...(esObjetoPlano(base) ? { ...base } : {}),
+        ...(esObjetoPlano(complemento) ? { ...complemento } : {}),
+      };
+    }
+
+    if (Array.isArray(complemento)) {
+      return [...complemento];
+    }
+
+    if (Array.isArray(base)) {
+      return [...base];
+    }
+
+    return complemento ?? base ?? null;
+  }
+
+  private resolverEstadoCombinado(estadoCabecera?: string | null, estadoDetalle?: string | null): string | null {
+    const prioridad = ['fallido', 'pendiente', 'procesando', 'procesado'];
+    const estados = [estadoCabecera, estadoDetalle].filter((estado): estado is string => typeof estado === 'string' && estado.trim() !== '');
+
+    if (estados.length === 0) {
+      return estadoDetalle ?? estadoCabecera ?? null;
+    }
+
+    for (const estadoPrioritario of prioridad) {
+      if (estados.includes(estadoPrioritario)) {
+        return estadoPrioritario;
+      }
+    }
+
+    return estados[0];
+  }
+
+  private obtenerClaveAgrupacionTrabajo(trabajo: any): string {
+    const candidatosNumericos: number[] = [];
+    const agregarCandidato = (valor: any) => {
+      if (typeof valor === 'number' && Number.isFinite(valor)) {
+        candidatosNumericos.push(valor);
+      }
+    };
+
+    agregarCandidato(trabajo?.mantenimientoLocalId);
+    agregarCandidato(trabajo?.mantenimiento?.id);
+    agregarCandidato(trabajo?.datosCompletos?.mantenimientoLocalId);
+    agregarCandidato(trabajo?.datosCompletos?.mantenimientoId);
+    agregarCandidato(trabajo?.payload?.mantenimientoId);
+    agregarCandidato(trabajo?.detalle?.mantenimientoId);
+
+    if (candidatosNumericos.length > 0) {
+      return `mantenimiento-${candidatosNumericos[0]}`;
+    }
+
+    const placa = String(trabajo?.payload?.placa ?? trabajo?.mantenimiento?.placa ?? trabajo?.datosCompletos?.placa ?? '').toLowerCase();
+    const tipoId = trabajo?.mantenimiento?.tipoId ?? trabajo?.payload?.tipoId ?? trabajo?.datosCompletos?.tipoId ?? '';
+    const vigiladoId = trabajo?.vigiladoId ?? trabajo?.payload?.vigiladoId ?? trabajo?.datosCompletos?.vigiladoId ?? '';
+
+    return `alterno-${placa}-${tipoId ?? ''}-${vigiladoId ?? ''}`;
+  }
+
+  private vincularCabeceras(trabajos: any[]): any[] {
+    if (!Array.isArray(trabajos) || trabajos.length === 0) {
+      return [];
+    }
+
+    const cabecerasPorClave = new Map<string, any>();
+    const clavesUtilizadas = new Set<string>();
+
+    for (const trabajo of trabajos) {
+      if (!trabajo || trabajo.tipo !== 'base') {
+        continue;
+      }
+
+      const clave = this.obtenerClaveAgrupacionTrabajo(trabajo);
+      if (!cabecerasPorClave.has(clave)) {
+        cabecerasPorClave.set(clave, trabajo);
+        continue;
+      }
+
+      const existente = cabecerasPorClave.get(clave);
+      const marcaExistente = existente?.updatedAt ?? existente?.createdAt ?? null;
+      const marcaActual = trabajo?.updatedAt ?? trabajo?.createdAt ?? null;
+      if (!marcaExistente || !marcaActual || String(marcaActual) >= String(marcaExistente)) {
+        cabecerasPorClave.set(clave, trabajo);
+      }
+    }
+
+    const resultado: any[] = [];
+
+    for (const trabajo of trabajos) {
+      if (!trabajo || trabajo.tipo === 'base') {
+        continue;
+      }
+
+      const clave = this.obtenerClaveAgrupacionTrabajo(trabajo);
+      const cabecera = cabecerasPorClave.get(clave) ?? null;
+      if (cabecera) {
+        clavesUtilizadas.add(clave);
+      }
+
+      const datosCompletos = this.fusionarPlanos(cabecera?.datosCompletos, trabajo?.datosCompletos);
+      const payload = this.fusionarPlanos(cabecera?.payload, trabajo?.payload);
+      const mantenimiento = this.fusionarPlanos(cabecera?.mantenimiento, trabajo?.mantenimiento);
+
+      const trabajosAsociados: Array<{ id: number | null; tipo: string | null; estado: string | null; ultimoError: string | null; reintentos: number }> = [];
+
+      if (cabecera) {
+        trabajosAsociados.push({
+          id: cabecera.id ?? null,
+          tipo: cabecera.tipo ?? null,
+          estado: cabecera.estado ?? null,
+          ultimoError: cabecera.ultimoError ?? null,
+          reintentos: cabecera.reintentos ?? 0,
+        });
+      }
+
+      trabajosAsociados.push({
+        id: trabajo.id ?? null,
+        tipo: trabajo.tipo ?? null,
+        estado: trabajo.estado ?? null,
+        ultimoError: trabajo.ultimoError ?? null,
+        reintentos: trabajo.reintentos ?? 0,
+      });
+
+      const estado = this.resolverEstadoCombinado(cabecera?.estado, trabajo?.estado);
+      const reintentos = Math.max(cabecera?.reintentos ?? 0, trabajo?.reintentos ?? 0);
+      const ultimoError = trabajo?.ultimoError ?? cabecera?.ultimoError ?? null;
+      const siguienteIntento = trabajo?.siguienteIntento ?? cabecera?.siguienteIntento ?? null;
+
+      resultado.push({
+        ...trabajo,
+        estado,
+        reintentos,
+        ultimoError,
+        siguienteIntento,
+        payload,
+        mantenimiento,
+        datosCompletos,
+        cabecera: cabecera
+          ? {
+              id: cabecera.id ?? null,
+              estado: cabecera.estado ?? null,
+              ultimoError: cabecera.ultimoError ?? null,
+              reintentos: cabecera.reintentos ?? 0,
+              siguienteIntento: cabecera.siguienteIntento ?? null,
+              payload: cabecera.payload ?? null,
+              datosCompletos: cabecera.datosCompletos ?? null,
+            }
+          : null,
+        cabeceraId: cabecera?.id ?? null,
+        trabajosAsociados,
+      });
+    }
+
+    for (const [clave, cabecera] of cabecerasPorClave.entries()) {
+      if (clavesUtilizadas.has(clave)) {
+        continue;
+      }
+
+      resultado.push({
+        ...cabecera,
+        cabecera: null,
+        cabeceraId: cabecera?.id ?? null,
+        trabajosAsociados: [
+          {
+            id: cabecera.id ?? null,
+            tipo: cabecera.tipo ?? null,
+            estado: cabecera.estado ?? null,
+            ultimoError: cabecera.ultimoError ?? null,
+            reintentos: cabecera.reintentos ?? 0,
+          },
+        ],
+      });
+    }
+
+    return resultado;
+  }
+
   private async actualizarDatosLocales(job: TblMantenimientoJob, payload?: Record<string, any> | null): Promise<void> {
     if (!payload || typeof payload !== 'object') {
       return;
@@ -2518,10 +2700,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   ): Promise<Paginable<TrabajoProgramado>> {
     const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
 
-    const { nitVigilado } = await this.obtenerDatosAutenticacion(filtros?.nit!, idRol);
-
-    //await this.restringirTrabajosPorUsuario(query, usuario, idRol);
-
+    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
 
     if (filtros?.estado) {
       query.andWhere('tmj_estado', filtros.estado);
@@ -2536,12 +2715,18 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
       }
     }
-
-
-    /* if (filtros?.nit) {
-      query.andWhere('tmj_usuario_documento', nitVigilado);
+    if (filtros?.vin) {
+      query.andWhere('tmj_vin', filtros.vin);
     }
- */
+    if (filtros?.usuario) {
+      query.andWhere('tmj_usuario_documento', filtros.usuario);
+    }
+    if (filtros?.proveedor) {
+      query.andWhere('tmj_proveedor_id', filtros.proveedor);
+    }
+    if (filtros?.nit) {
+      query.andWhere('tmj_vigilado_id', filtros.nit);
+    }
 
     if (filtros?.fecha) {
       const fechaFiltro = DateTime.fromISO(String(filtros.fecha));
@@ -2590,10 +2775,11 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const trabajos = trabajosPaginados.all();
     const trabajosMapeados = await this.mapearTrabajosConDetalle(trabajos);
+    const trabajosUnificados = this.vincularCabeceras(trabajosMapeados);
 
     return {
       paginacion: MapeadorPaginacionDB.obtenerPaginacion(trabajosPaginados),
-      datos: trabajosMapeados,
+      datos: trabajosUnificados,
     };
   }
 
@@ -2618,8 +2804,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
 
     const trabajos = await query;
+    const trabajosMapeados = await this.mapearTrabajosConDetalle(trabajos, estadoObjetivo);
 
-    return this.mapearTrabajosConDetalle(trabajos, estadoObjetivo);
+    return this.vincularCabeceras(trabajosMapeados);
   }
 
   async obtenerTrabajoProgramado(jobId: number, usuario: string, idRol: number): Promise<any> {
@@ -2631,12 +2818,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     await this.asegurarPermisoSobreJob(job, usuario, idRol);
     const resultados = await this.mapearTrabajosConDetalle([job]);
+    const unificados = this.vincularCabeceras(resultados);
 
-    if (resultados.length === 0) {
+    if (unificados.length === 0) {
       throw new Exception('No fue posible obtener el detalle del trabajo', 404);
     }
 
-    return resultados[0];
+    return unificados[0];
   }
 
 
@@ -2664,11 +2852,76 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const accion = opciones?.accion ?? 'reprogramar';
     const tienePayload = opciones ? Object.prototype.hasOwnProperty.call(opciones, 'payload') : false;
-    const payload = tienePayload ? opciones?.payload ?? null : undefined;
+
+    let payloadParaJob: Record<string, any> | null | undefined = undefined;
+    let payloadCabecera: Record<string, any> | null | undefined = undefined;
 
     if (tienePayload) {
-      job.payload = payload ?? null;
-      await this.actualizarDatosLocales(job, payload ?? undefined);
+      const bruto = opciones?.payload ?? null;
+
+      if (bruto !== null && typeof bruto !== 'object') {
+        throw new Exception('El payload debe ser un objeto o nulo', 400);
+      }
+
+      if (bruto && (Object.prototype.hasOwnProperty.call(bruto, 'cabecera') || Object.prototype.hasOwnProperty.call(bruto, 'detalle') || Object.prototype.hasOwnProperty.call(bruto, 'cuerpo'))) {
+        const cabeceraBruta = (bruto as any).cabecera;
+        const detalleBruto = (bruto as any).detalle ?? (bruto as any).cuerpo ?? null;
+
+        if (cabeceraBruta !== undefined) {
+          if (cabeceraBruta !== null && typeof cabeceraBruta !== 'object') {
+            throw new Exception('El payload de la cabecera debe ser un objeto o nulo', 400);
+          }
+          payloadCabecera = cabeceraBruta ?? null;
+        }
+
+        if (detalleBruto !== undefined) {
+          if (detalleBruto !== null && typeof detalleBruto !== 'object') {
+            throw new Exception('El payload del detalle debe ser un objeto o nulo', 400);
+          }
+          payloadParaJob = detalleBruto ?? null;
+        }
+
+        const restante = { ...(bruto as Record<string, any>) };
+        delete restante.cabecera;
+        delete restante.detalle;
+        delete restante.cuerpo;
+
+        if (Object.keys(restante).length > 0 && payloadParaJob === undefined) {
+          payloadParaJob = restante;
+        }
+      } else {
+        payloadParaJob = bruto;
+      }
+    }
+
+    if (job.tipo === 'base') {
+      const payloadBase = payloadParaJob !== undefined ? payloadParaJob : payloadCabecera;
+      if (payloadBase !== undefined) {
+        job.payload = payloadBase ?? null;
+        await this.actualizarDatosLocales(job, payloadBase ?? undefined);
+      }
+    } else {
+      if (payloadCabecera !== undefined) {
+        let jobCabecera: TblMantenimientoJob | null = null;
+        if (typeof job.mantenimientoLocalId === 'number' && Number.isFinite(job.mantenimientoLocalId)) {
+          jobCabecera = await TblMantenimientoJob.query()
+            .where('tmj_mantenimiento_local_id', job.mantenimientoLocalId)
+            .where('tmj_tipo', 'base')
+            .orderBy('tmj_id', 'desc')
+            .first();
+        }
+
+        if (jobCabecera) {
+          jobCabecera.payload = payloadCabecera ?? null;
+          await this.actualizarDatosLocales(jobCabecera, payloadCabecera ?? undefined);
+          await jobCabecera.save();
+        }
+      }
+
+      if (payloadParaJob !== undefined) {
+        job.payload = payloadParaJob ?? null;
+        await this.actualizarDatosLocales(job, payloadParaJob ?? undefined);
+      }
     }
 
     switch (accion) {
