@@ -68,7 +68,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   }
 
   private convertirErrorExterno(errorExterno: any, mensajePorDefecto: string): never {
-    const datosRespuesta = errorExterno?.response?.data ?? errorExterno?.data ?? null;
+    const datosRespuesta = errorExterno?.response?.data ?? errorExterno?.data ?? errorExterno.responseData ?? null;
     const mensajeRespuesta =
       datosRespuesta?.mensaje ??
       datosRespuesta?.message ??
@@ -84,8 +84,36 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     (exception as any).mensajeApi = mensajeRespuesta ?? null;
     (exception as any).mensajeInterno = mensajeFinal;
 
-    if (datosRespuesta) {
-      (exception as any).responseData = datosRespuesta;
+    let responseData: Record<string, any> | null = null;
+
+    if (datosRespuesta && typeof datosRespuesta === 'object' && !Array.isArray(datosRespuesta)) {
+      responseData = { ...datosRespuesta };
+    } else if (datosRespuesta !== null && datosRespuesta !== undefined) {
+      responseData = { detalle: datosRespuesta };
+    }
+
+    if (!responseData) {
+      responseData = {};
+    }
+
+    const mensajeNormalizado = typeof responseData.mensaje === 'string' ? responseData.mensaje.trim() : '';
+    if (!mensajeNormalizado) {
+      responseData.mensaje = mensajeFinal;
+    }
+
+    if (responseData.status === undefined && Number.isFinite(Number(status))) {
+      responseData.status = Number(status);
+    }
+
+    if (datosRespuesta && Array.isArray(datosRespuesta)) {
+      responseData.detalle = datosRespuesta;
+    }
+
+    (exception as any).responseData = responseData;
+    (exception as any).rawError = errorExterno;
+
+    if (!exception.stack && typeof errorExterno?.stack === 'string') {
+      exception.stack = errorExterno.stack;
     }
 
     throw exception;
