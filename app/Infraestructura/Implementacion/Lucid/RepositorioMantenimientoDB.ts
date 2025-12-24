@@ -2478,6 +2478,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       usuario?: string
       proveedor?: string
       sincronizacionEstado?: string
+      nit?: string
+      fecha?: string
     },
     pagina?: number,
     limite?: number,
@@ -2497,7 +2499,11 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       query.andWhere('tmj_tipo', filtros.tipo);
     }
     if (filtros?.placa) {
-      query.andWhere('tmj_placa', filtros.placa);
+      const placaTexto = String(filtros.placa).trim();
+      if (placaTexto.length > 0) {
+        const placaNormalizada = placaTexto.toLowerCase();
+        query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
+      }
     }
     if (filtros?.vin) {
       query.andWhere('tmj_vin', filtros.vin);
@@ -2510,6 +2516,15 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
     if (filtros?.nit) {
       query.andWhere('tmj_vigilado_id', filtros.nit);
+    }
+
+
+    if (filtros?.fecha) {
+      const fechaFiltro = DateTime.fromISO(String(filtros.fecha));
+      if (fechaFiltro.isValid) {
+        const fechaISO = fechaFiltro.toISODate();
+        query.andWhereRaw('DATE(tmj_creado) = ?', [fechaISO]);
+      }
     }
 
     if (typeof filtros?.sincronizacionEstado === 'string') {
@@ -2599,6 +2614,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     return resultados[0];
   }
+
+
 
   async reintentarTrabajoFallido(
     jobId: number,

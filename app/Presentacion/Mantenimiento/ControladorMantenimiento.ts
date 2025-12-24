@@ -801,6 +801,10 @@ export default class ControladorMantenimiento {
         proveedor,
         sincronizacionEstado,
         nit,
+        fecha,
+        terminoTipo,
+        terminoPlaca,
+        termino,
         ordenCampo,
         ordenDireccion,
       } = request.qs();
@@ -814,6 +818,9 @@ export default class ControladorMantenimiento {
         proveedor?: string
         sincronizacionEstado?: string
         nit?: string
+        fecha?: string
+        terminoTipo?: string
+        terminoPlaca?: string
       } = {};
 
       if (estado) filtros.estado = String(estado);
@@ -824,6 +831,21 @@ export default class ControladorMantenimiento {
       if (proveedor) filtros.proveedor = String(proveedor);
       if (sincronizacionEstado) filtros.sincronizacionEstado = String(sincronizacionEstado);
       if (nit) filtros.nit = String(nit);
+      if (terminoTipo) filtros.terminoTipo = String(terminoTipo);
+      if (terminoPlaca) filtros.terminoPlaca = String(terminoPlaca);
+      if (termino && !terminoTipo && !terminoPlaca) {
+        const terminoNormalizado = String(termino);
+        filtros.terminoTipo = terminoNormalizado;
+        filtros.terminoPlaca = terminoNormalizado;
+      }
+
+      if (fecha) {
+        const fechaNormalizada = DateTime.fromISO(String(fecha));
+        if (!fechaNormalizada.isValid) {
+          return response.status(400).send({ mensaje: 'La fecha debe tener formato ISO (YYYY-MM-DD)' });
+        }
+        filtros.fecha = fechaNormalizada.toISODate();
+      }
 
       let paginaNumero: number | undefined;
       if (pagina !== undefined) {

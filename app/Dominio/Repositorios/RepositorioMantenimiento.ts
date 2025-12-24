@@ -35,6 +35,7 @@ export interface RepositorioMantenimiento{
             proveedor?: string
             sincronizacionEstado?: string
             nit?: string
+            fecha?: string
         },
         pagina?: number,
         limite?: number,

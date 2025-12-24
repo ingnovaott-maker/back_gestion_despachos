@@ -67,6 +67,7 @@ export class ServicioMantenimeinto{
       proveedor?: string
       sincronizacionEstado?: string
       nit?: string
+      fecha?: string
     },
     pagina?: number,
     limite?: number,
@@ -89,6 +90,8 @@ export class ServicioMantenimeinto{
       usuario?: string
       proveedor?: string
       sincronizacionEstado?: string
+      nit?: string
+      fecha?: string
     },
     pagina?: number,
     limite?: number,
