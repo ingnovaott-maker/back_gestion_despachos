@@ -2492,7 +2492,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const { nitVigilado } = await this.obtenerDatosAutenticacion(filtros?.nit!, idRol);
 
-    await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
+    //await this.restringirTrabajosPorUsuario(query, usuario, idRol);
 
 
     if (filtros?.estado) {
