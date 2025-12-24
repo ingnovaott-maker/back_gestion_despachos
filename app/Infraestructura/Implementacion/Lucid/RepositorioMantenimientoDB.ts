@@ -159,7 +159,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     idRol: number
   ): Promise<void> {
     if (idRol === 3) {
-      query.andWhere('tmj_usuario_documento', usuario);
+      query.andWhere('tmj_vigilado_id', usuario);
       return;
     }
 
@@ -2700,7 +2700,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   ): Promise<Paginable<TrabajoProgramado>> {
     const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
 
-    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
+      const { nitVigilado} = await this.obtenerDatosAutenticacion(filtros?.nit!, idRol);
+
+    //await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
 
     if (filtros?.estado) {
       query.andWhere('tmj_estado', filtros.estado);
@@ -2715,17 +2717,10 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
       }
     }
-    if (filtros?.vin) {
-      query.andWhere('tmj_vin', filtros.vin);
-    }
-    if (filtros?.usuario) {
-      query.andWhere('tmj_usuario_documento', filtros.usuario);
-    }
-    if (filtros?.proveedor) {
-      query.andWhere('tmj_proveedor_id', filtros.proveedor);
-    }
-    if (filtros?.nit) {
-      query.andWhere('tmj_vigilado_id', filtros.nit);
+
+
+     if (filtros?.nit) {
+      query.andWhere('tmj_vigilado_id', nitVigilado);
     }
 
     if (filtros?.fecha) {
@@ -2844,9 +2839,25 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       throw new Exception('Trabajo no encontrado', 404);
     }
 
-    await this.asegurarPermisoSobreJob(job, usuario, idRol);
+    let jobCabecera: TblMantenimientoJob | null = null;
+    if (job.tipo !== 'base' && typeof job.mantenimientoLocalId === 'number' && Number.isFinite(job.mantenimientoLocalId)) {
+      jobCabecera = await TblMantenimientoJob.query()
+        .where('tmj_mantenimiento_local_id', job.mantenimientoLocalId)
+        .where('tmj_tipo', 'base')
+        .orderBy('tmj_id', 'desc')
+        .first();
+    }
 
-    if (job.estado !== 'fallido') {
+    const jobObjetivo = jobCabecera && jobCabecera.estado === 'fallido' ? jobCabecera : job;
+
+    await this.asegurarPermisoSobreJob(jobObjetivo, usuario, idRol);
+    if (jobObjetivo.id !== job.id) {
+      await this.asegurarPermisoSobreJob(job, usuario, idRol);
+    }
+
+    const estadoJob = job.estado ?? null;
+    const estadoObjetivo = jobObjetivo.estado ?? null;
+    if (estadoJob !== 'fallido' && estadoObjetivo !== 'fallido') {
       throw new Exception('Solo se pueden reprogramar trabajos en estado fallido', 400);
     }
 
@@ -2894,68 +2905,58 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
-    if (job.tipo === 'base') {
+    if (jobObjetivo.tipo === 'base') {
       const payloadBase = payloadParaJob !== undefined ? payloadParaJob : payloadCabecera;
       if (payloadBase !== undefined) {
-        job.payload = payloadBase ?? null;
-        await this.actualizarDatosLocales(job, payloadBase ?? undefined);
+        jobObjetivo.payload = payloadBase ?? null;
+        await this.actualizarDatosLocales(jobObjetivo, payloadBase ?? undefined);
       }
     } else {
-      if (payloadCabecera !== undefined) {
-        let jobCabecera: TblMantenimientoJob | null = null;
-        if (typeof job.mantenimientoLocalId === 'number' && Number.isFinite(job.mantenimientoLocalId)) {
-          jobCabecera = await TblMantenimientoJob.query()
-            .where('tmj_mantenimiento_local_id', job.mantenimientoLocalId)
-            .where('tmj_tipo', 'base')
-            .orderBy('tmj_id', 'desc')
-            .first();
-        }
-
-        if (jobCabecera) {
-          jobCabecera.payload = payloadCabecera ?? null;
-          await this.actualizarDatosLocales(jobCabecera, payloadCabecera ?? undefined);
-          await jobCabecera.save();
-        }
+      if (payloadCabecera !== undefined && jobCabecera) {
+        jobCabecera.payload = payloadCabecera ?? null;
+        await this.actualizarDatosLocales(jobCabecera, payloadCabecera ?? undefined);
+        await jobCabecera.save();
       }
 
       if (payloadParaJob !== undefined) {
         job.payload = payloadParaJob ?? null;
         await this.actualizarDatosLocales(job, payloadParaJob ?? undefined);
+        await job.save();
       }
     }
 
     switch (accion) {
       case 'marcarProcesado':
-        await this.marcarJobComoProcesado(job);
+        await this.marcarJobComoProcesado(jobObjetivo);
         return {
           mensaje: 'Trabajo marcado como procesado',
-          estado: job.estado,
-          jobId: job.id,
+          estado: jobObjetivo.estado,
+          jobId: jobObjetivo.id,
         };
       case 'actualizar':
-        this.prepararReprogramacion(job);
-        await job.save();
+        this.prepararReprogramacion(jobObjetivo);
+        await jobObjetivo.save();
         return {
           mensaje: 'Datos actualizados y trabajo reprogramado para sincronización',
-          estado: job.estado,
-          jobId: job.id,
-          siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
+          estado: jobObjetivo.estado,
+          jobId: jobObjetivo.id,
+          siguienteIntento: jobObjetivo.siguienteIntento ? jobObjetivo.siguienteIntento.toISO() : null,
         };
       case 'reprogramar':
       default:
-        if (job.reintentos >= this.MAX_REINTENTOS) {
-          await job.save();
+        if (jobObjetivo.reintentos >= this.MAX_REINTENTOS) {
+          await jobObjetivo.save();
           throw new Exception('El trabajo alcanzó el número máximo de reintentos permitidos. Procese el mantenimiento manualmente.', 409);
         }
 
-        this.prepararReprogramacion(job);
-        await job.save();
+        this.prepararReprogramacion(jobObjetivo);
+        await jobObjetivo.save();
 
         return {
           mensaje: 'Trabajo reprogramado para sincronización',
-          estado: job.estado,
-          jobId: job.id,
-          siguienteIntento: job.siguienteIntento ? job.siguienteIntento.toISO() : null,
+          estado: jobObjetivo.estado,
+          jobId: jobObjetivo.id,
+          siguienteIntento: jobObjetivo.siguienteIntento ? jobObjetivo.siguienteIntento.toISO() : null,
         };
     }
   }
