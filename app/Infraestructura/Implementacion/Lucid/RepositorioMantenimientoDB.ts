@@ -1335,6 +1335,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         ? DateTime.fromISO(String(fecha), { zone: 'utc' }).toISODate()
         : null;
 
+      console.log('[Preventivo local] entrada:', { fechaOriginal: fecha, fechaISO });
+
       const preventivoDTO = {
         placa,
         fecha: fechaISO ?? fecha,
@@ -1349,6 +1351,12 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         procesado: false
       };
       const preventivo = await TblPreventivo.create(preventivoDTO);
+
+      console.log('[Preventivo local] guardado:', {
+        preventivoId: preventivo.id,
+        fechaPersistida: preventivo.fecha,
+        fechaDTO: preventivoDTO.fecha,
+      });
 
       if (asyncMode) {
         const mantenimientoLocal = await TblMantenimiento.find(mantenimientoId);
@@ -1486,6 +1494,12 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         procesado: false
       };
       const correctivo = await TblCorrectivo.create(correctivoDTO);
+
+      console.log('[Correctivo local] guardado:', {
+        correctivoId: correctivo.id,
+        fechaPersistida: correctivo.fecha,
+        fechaDTO: correctivoDTO.fecha,
+      });
 
       if (asyncMode) {
         const mantenimientoLocal = await TblMantenimiento.find(mantenimientoId);

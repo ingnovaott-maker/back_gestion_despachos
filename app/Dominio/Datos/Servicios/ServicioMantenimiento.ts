@@ -137,6 +137,11 @@ export class ServicioMantenimeinto{
 
     for (const [indice, registro] of registros.entries()) {
       try {
+        console.log('[Masivo preventivo] fila', indice + 1, {
+          fecha: registro.fecha,
+          hora: registro.hora,
+          placa: registro.placa,
+        });
         const mantenimiento = await this.guardarMantenimiento({ vigiladoId: registro.vigiladoId, placa: registro.placa, tipoId: 1 }, usuario, idRol, undefined, opciones)
         const mantenimientoLocalId = mantenimiento?.mantenimientoLocalId || mantenimiento?.mantenimientoIdLocal || mantenimiento?.mantenimientoId || mantenimiento?.id
 
