@@ -1300,9 +1300,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
       // 1. Guardar localmente primero
+      const fechaISO = fecha
+        ? DateTime.fromISO(String(fecha), { zone: 'utc' }).toISODate()
+        : null;
+
       const preventivoDTO = {
         placa,
-        fecha,
+        fecha: fechaISO ?? fecha,
         hora,
         nit,
         razonSocial,
@@ -1357,7 +1361,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const datosPreventivo = {
-          fecha,
+          fecha: fechaISO ?? fecha,
           hora,
           nit,
           razonSocial,
@@ -1431,9 +1435,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
       // 1. Guardar localmente primero
+      const fechaISO = fecha
+        ? DateTime.fromISO(String(fecha), { zone: 'utc' }).toISODate()
+        : null;
+
       const correctivoDTO = {
         placa,
-        fecha,
+        fecha: fechaISO ?? fecha,
         hora,
         nit,
         razonSocial,
@@ -1487,7 +1495,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
         const datosCorrectivo = {
-          fecha,
+          fecha: fechaISO ?? fecha,
           hora,
           nit,
           razonSocial,
