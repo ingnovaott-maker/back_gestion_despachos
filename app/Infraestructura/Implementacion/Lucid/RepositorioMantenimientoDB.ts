@@ -592,6 +592,37 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     return `alterno-${placa}-${tipoId ?? ''}-${vigiladoId ?? ''}`;
   }
 
+  private normalizarFechaParaEnvio(fecha: any): string | null {
+    try {
+      if (!fecha) {
+        return null;
+      }
+
+      if (typeof fecha === 'string') {
+        const iso = DateTime.fromISO(fecha, { zone: 'utc' });
+        if (iso.isValid) {
+          return iso.toISODate();
+        }
+
+        const desdeJS = DateTime.fromJSDate(new Date(fecha)).setZone('utc');
+        return desdeJS.isValid ? desdeJS.toISODate() : null;
+      }
+
+      if (fecha instanceof Date) {
+        return DateTime.fromJSDate(fecha).setZone('utc').toISODate();
+      }
+
+      if (typeof fecha === 'object' && typeof (fecha as any).toJSDate === 'function') {
+        const jsDate = (fecha as any).toJSDate();
+        return DateTime.fromJSDate(jsDate).setZone('utc').toISODate();
+      }
+
+      return null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
   private async vincularCabeceras(trabajos: any[]): Promise<any[]> {
     if (!Array.isArray(trabajos) || trabajos.length === 0) {
       return [];
@@ -1945,7 +1976,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
     const datosPreventivo = {
-      fecha: preventivo.fecha,
+      fecha: this.normalizarFechaParaEnvio(preventivo.fecha),
       hora: preventivo.hora,
       nit: preventivo.nit,
       razonSocial: preventivo.razonSocial,
@@ -2011,7 +2042,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
     const datosCorrectivo = {
-      fecha: correctivo.fecha,
+      fecha: this.normalizarFechaParaEnvio(correctivo.fecha),
       hora: correctivo.hora,
       nit: correctivo.nit,
       razonSocial: correctivo.razonSocial,
