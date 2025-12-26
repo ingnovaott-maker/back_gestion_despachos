@@ -211,12 +211,14 @@ export default class ControladorMantenimiento {
 
   private normalizarFechaExcel(valor: any): string | null {
     if (valor instanceof Date) {
-      return DateTime.fromJSDate(valor).toISODate();
+      // Interpretar la fecha sin desplazar por zona horaria
+      return DateTime.fromJSDate(valor, { zone: 'utc' }).toISODate();
     }
 
     if (typeof valor === 'number') {
-      const jsDate = new Date(Math.round((valor - 25569) * 86400 * 1000));
-      return DateTime.fromJSDate(jsDate).toISODate();
+      // Excel almacena fechas como serie numérica; se normaliza en UTC para evitar restar un día
+      const millis = Math.round((valor - 25569) * 86400 * 1000);
+      return DateTime.fromMillis(millis, { zone: 'utc' }).toISODate();
     }
 
     if (typeof valor === 'string') {
