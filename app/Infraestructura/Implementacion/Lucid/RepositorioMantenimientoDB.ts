@@ -2764,7 +2764,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
 
     const { nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
-    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
+    await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
 
     if (filtros?.estado) {
       query.andWhere('tmj_estado', filtros.estado);
