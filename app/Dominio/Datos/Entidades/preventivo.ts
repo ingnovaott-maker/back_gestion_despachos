@@ -1,14 +1,14 @@
 export class Preventivo {
-id?: number  
+id?: number
 placa: string
 fecha: string
 hora: string
-nit: number
-razonSocial: string  
-tipoIdentificacion: number  
-numeroIdentificacion: number  
-nombresResponsable: string  
-mantenimientoId: number  
-detalleActividades: string  
+nit: string
+razonSocial: string
+tipoIdentificacion: number
+numeroIdentificacion: number
+nombresResponsable: string
+mantenimientoId: number
+detalleActividades: string
 estado?: boolean
 }

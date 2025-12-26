@@ -8,7 +8,7 @@ export default class TblCorrectivo extends BaseModel {
   @column({ columnName: 'tcv_placa' }) public placa: string
   @column({ columnName: 'tcv_fecha' }) public fecha: Date
   @column({ columnName: 'tcv_hora' }) public hora: string
-  @column({ columnName: 'tcv_nit' }) public nit: number
+  @column({ columnName: 'tcv_nit' }) public nit: string
   @column({ columnName: 'tcv_razon_social' }) public razonSocial: string
   @column({ columnName: 'tcv_tipo_identificacion' }) public tipoIdentificacion: number
   @column({ columnName: 'tcv_numero_identificacion' }) public numeroIdentificacion: number

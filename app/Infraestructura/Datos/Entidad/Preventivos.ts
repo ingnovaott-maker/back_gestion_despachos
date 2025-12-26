@@ -8,7 +8,7 @@ export default class TblPreventivo extends BaseModel {
   @column({ columnName: 'tpv_placa' }) public placa: string
   @column({ columnName: 'tpv_fecha' }) public fecha: Date
   @column({ columnName: 'tpv_hora' }) public hora: string
-  @column({ columnName: 'tpv_nit' }) public nit: number
+  @column({ columnName: 'tpv_nit' }) public nit: string
   @column({ columnName: 'tpv_razon_social' }) public razonSocial: string
   @column({ columnName: 'tpv_tipo_identificacion' }) public tipoIdentificacion: number
   @column({ columnName: 'tpv_numero_identificacion' }) public numeroIdentificacion: number
