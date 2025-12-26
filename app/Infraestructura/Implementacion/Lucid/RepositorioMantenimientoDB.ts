@@ -609,12 +609,26 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
 
       if (fecha instanceof Date) {
-        return DateTime.fromJSDate(fecha).setZone('utc').toISODate();
+        return DateTime.fromObject(
+          {
+            year: fecha.getFullYear(),
+            month: fecha.getMonth() + 1,
+            day: fecha.getDate(),
+          },
+          { zone: 'utc' }
+        ).toISODate();
       }
 
       if (typeof fecha === 'object' && typeof (fecha as any).toJSDate === 'function') {
         const jsDate = (fecha as any).toJSDate();
-        return DateTime.fromJSDate(jsDate).setZone('utc').toISODate();
+        return DateTime.fromObject(
+          {
+            year: jsDate.getFullYear(),
+            month: jsDate.getMonth() + 1,
+            day: jsDate.getDate(),
+          },
+          { zone: 'utc' }
+        ).toISODate();
       }
 
       return null;
