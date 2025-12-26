@@ -592,9 +592,72 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     return `alterno-${placa}-${tipoId ?? ''}-${vigiladoId ?? ''}`;
   }
 
-  private vincularCabeceras(trabajos: any[]): any[] {
+  private async vincularCabeceras(trabajos: any[]): Promise<any[]> {
     if (!Array.isArray(trabajos) || trabajos.length === 0) {
       return [];
+    }
+
+    const obtenerIdMantenimiento = (trabajo: any): number | null => {
+      const candidatosNumericos: number[] = [];
+      const agregarCandidato = (valor: any) => {
+        if (typeof valor === 'number' && Number.isFinite(valor)) {
+          candidatosNumericos.push(valor);
+        }
+      };
+
+      agregarCandidato(trabajo?.mantenimientoLocalId);
+      agregarCandidato(trabajo?.mantenimiento?.id);
+      agregarCandidato(trabajo?.datosCompletos?.mantenimientoLocalId);
+      agregarCandidato(trabajo?.datosCompletos?.mantenimientoId);
+      agregarCandidato(trabajo?.payload?.mantenimientoId);
+      agregarCandidato(trabajo?.detalle?.mantenimientoId);
+
+      return candidatosNumericos.length > 0 ? candidatosNumericos[0] : null;
+    };
+
+    const estadoPorMantenimiento = new Map<number, { base: boolean; detalle: boolean }>();
+    const idsExistentes = new Set<number>();
+
+    for (const trabajo of trabajos) {
+      if (typeof trabajo?.id === 'number') {
+        idsExistentes.add(trabajo.id);
+      }
+
+      const mantenimientoId = obtenerIdMantenimiento(trabajo);
+      if (mantenimientoId === null) {
+        continue;
+      }
+
+      const registro = estadoPorMantenimiento.get(mantenimientoId) ?? { base: false, detalle: false };
+      if (trabajo?.tipo === 'base') {
+        registro.base = true;
+      } else {
+        registro.detalle = true;
+      }
+      estadoPorMantenimiento.set(mantenimientoId, registro);
+    }
+
+    const idsParaCompletar: number[] = [];
+    for (const [id, estado] of estadoPorMantenimiento.entries()) {
+      if ((estado.base && !estado.detalle) || (!estado.base && estado.detalle)) {
+        idsParaCompletar.push(id);
+      }
+    }
+
+    if (idsParaCompletar.length > 0) {
+      const faltantes = await TblMantenimientoJob.query()
+        .whereIn('tmj_mantenimiento_local_id', idsParaCompletar)
+        .orderBy('tmj_creado', 'asc');
+
+      if (faltantes.length > 0) {
+        const mapeados = await this.mapearTrabajosConDetalle(faltantes);
+        for (const item of mapeados) {
+          if (typeof item?.id === 'number' && idsExistentes.has(item.id)) {
+            continue;
+          }
+          trabajos.push(item);
+        }
+      }
     }
 
     const cabecerasPorClave = new Map<string, any>();
@@ -2700,9 +2763,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   ): Promise<Paginable<TrabajoProgramado>> {
     const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
 
-      const { nitVigilado} = await this.obtenerDatosAutenticacion(filtros?.nit!, idRol);
-
-    //await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
+    const { nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
+    await this.restringirTrabajosPorUsuario(query, usuario, idRol);
 
     if (filtros?.estado) {
       query.andWhere('tmj_estado', filtros.estado);
@@ -2717,10 +2779,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
       }
     }
-
-
-     if (filtros?.nit) {
-      query.andWhere('tmj_vigilado_id', nitVigilado);
+    if (filtros?.nit) {
+      query.andWhere('tmj_vigilado_id', filtros.nit);
     }
 
     if (filtros?.fecha) {
@@ -2770,7 +2830,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const trabajos = trabajosPaginados.all();
     const trabajosMapeados = await this.mapearTrabajosConDetalle(trabajos);
-    const trabajosUnificados = this.vincularCabeceras(trabajosMapeados);
+    const trabajosUnificados = await this.vincularCabeceras(trabajosMapeados);
 
     return {
       paginacion: MapeadorPaginacionDB.obtenerPaginacion(trabajosPaginados),
@@ -2813,7 +2873,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     await this.asegurarPermisoSobreJob(job, usuario, idRol);
     const resultados = await this.mapearTrabajosConDetalle([job]);
-    const unificados = this.vincularCabeceras(resultados);
+    const unificados = await this.vincularCabeceras(resultados);
 
     if (unificados.length === 0) {
       throw new Exception('No fue posible obtener el detalle del trabajo', 404);
