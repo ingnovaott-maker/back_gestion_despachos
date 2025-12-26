@@ -2918,7 +2918,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const estadoJob = job.estado ?? null;
     const estadoObjetivo = jobObjetivo.estado ?? null;
     if (estadoJob !== 'fallido' && estadoObjetivo !== 'fallido') {
-      throw new Exception('Solo se pueden reprogramar trabajos en estado fallido', 400);
+      return
+     // throw new Exception('Solo se pueden reprogramar trabajos en estado fallido', 400);
     }
 
     const accion = opciones?.accion ?? 'reprogramar';
