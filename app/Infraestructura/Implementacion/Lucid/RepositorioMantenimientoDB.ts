@@ -1403,6 +1403,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
           detalleActividades
         };
 
+        console.log('[Preventivo externo] fecha local:', fecha, 'normalizada:', fechaISO ?? fecha);
+
         const respuestaPreventivo = await axios.post(
           `${urlMantenimientos}/mantenimiento/guardar-preventivo`,
           datosPreventivo,
@@ -1536,6 +1538,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
           mantenimientoId,
           detalleActividades
         };
+
+        console.log('[Correctivo externo] fecha local:', fecha, 'normalizada:', fechaISO ?? fecha);
 
         const respuestaCorrectivo = await axios.post(
           `${urlMantenimientos}/mantenimiento/guardar-correctivo`,
@@ -1988,6 +1992,11 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     };
 
     try {
+      console.log('[Job Preventivo externo]', {
+        jobId: job.id,
+        fechaLocal: preventivo.fecha,
+        fechaNormalizada: datosPreventivo.fecha,
+      });
       const respuesta = await axios.post(
         `${urlMantenimientos}/mantenimiento/guardar-preventivo`,
         datosPreventivo,
@@ -2054,6 +2063,11 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     };
 
     try {
+      console.log('[Job Correctivo externo]', {
+        jobId: job.id,
+        fechaLocal: correctivo.fecha,
+        fechaNormalizada: datosCorrectivo.fecha,
+      });
       const respuesta = await axios.post(
         `${urlMantenimientos}/mantenimiento/guardar-correctivo`,
         datosCorrectivo,
