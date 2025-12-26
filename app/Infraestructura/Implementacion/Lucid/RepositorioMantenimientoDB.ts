@@ -2779,8 +2779,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
       }
     }
-    if (filtros?.nit) {
-      query.andWhere('tmj_vigilado_id', filtros.nit);
+    if (nitVigilado) {
+      query.andWhere('tmj_vigilado_id', nitVigilado);
     }
 
     if (filtros?.fecha) {
