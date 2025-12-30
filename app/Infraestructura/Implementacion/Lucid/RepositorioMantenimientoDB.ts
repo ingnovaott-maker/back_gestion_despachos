@@ -192,12 +192,12 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   }
 
   private async asegurarPermisoSobreJob(job: TblMantenimientoJob, usuario: string, idRol: number): Promise<void> {
-    if (idRol === 3) {
+  /*   if (idRol === 3) {
       if (job.usuarioDocumento !== usuario) {
         throw new Exception('No cuenta con permisos para gestionar este trabajo', 403);
       }
       return;
-    }
+    } */
 
     const usuarioDb = await TblUsuarios.query().where('identificacion', usuario).first();
 
@@ -2991,10 +2991,10 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const jobObjetivo = jobCabecera && jobCabecera.estado === 'fallido' ? jobCabecera : job;
 
-    await this.asegurarPermisoSobreJob(jobObjetivo, usuario, idRol);
+  /*   await this.asegurarPermisoSobreJob(jobObjetivo, usuario, idRol);
     if (jobObjetivo.id !== job.id) {
       await this.asegurarPermisoSobreJob(job, usuario, idRol);
-    }
+    } */
 
     const estadoJob = job.estado ?? null;
     const estadoObjetivo = jobObjetivo.estado ?? null;
