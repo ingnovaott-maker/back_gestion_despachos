@@ -42,6 +42,7 @@ const databaseConfig: DatabaseConfig = {
         password: Env.get('PG_PASSWORD', ''),
         database: Env.get('PG_DB_NAME')
       },
+      searchPath: [Env.get('SCHEMA', 'sicov'), 'public'],
       migrations: {
         naturalSort: true,
       },
