@@ -14,6 +14,41 @@ import ExcelJS from 'exceljs';
 import { DateTime } from 'luxon';
 
 
+type DefinicionTipoDato = {
+  campo: string
+  tipo: 'numero' | 'texto'
+  etiqueta?: string
+  alternativas?: string[]
+  maxLongitud?: number
+}
+
+const DEFINICIONES_PREVENTIVO_CORRECTIVO: DefinicionTipoDato[] = [
+  { campo: 'vigiladoId', tipo: 'numero' },
+  { campo: 'placa', tipo: 'texto', maxLongitud: 6 },
+  { campo: 'fecha', tipo: 'texto' },
+  { campo: 'hora', tipo: 'texto' },
+  { campo: 'nit', tipo: 'numero', etiqueta: 'nit' },
+  { campo: 'razonSocial', tipo: 'texto' },
+  { campo: 'tipoIdentificacion', tipo: 'numero' },
+  { campo: 'numeroIdentificacion', tipo: 'numero', etiqueta: 'numeroIdentificacion' },
+  { campo: 'nombresResponsable', tipo: 'texto' },
+  { campo: 'detalleActividades', tipo: 'texto' },
+];
+
+const DEFINICIONES_ALISTAMIENTO: DefinicionTipoDato[] = [
+  { campo: 'vigiladoId', tipo: 'numero' },
+  { campo: 'placa', tipo: 'texto', maxLongitud: 6 },
+  { campo: 'tipoIdentificacionResponsable', tipo: 'numero' },
+  { campo: 'numeroIdentificacionResponsable', tipo: 'numero' },
+  { campo: 'nombreResponsable', tipo: 'texto' },
+  { campo: 'tipoIdentificacionConductor', tipo: 'numero' },
+  { campo: 'numeroIdentificacionConductor', tipo: 'numero' },
+  { campo: 'nombresConductor', tipo: 'texto' },
+  { campo: 'detalleActividades', tipo: 'texto' },
+  { campo: 'actividades', tipo: 'texto', alternativas: ['actividadesTexto', 'actividadestexto'] },
+];
+
+
 export default class ControladorMantenimiento {
   private servicioExportacion = new ServicioExportacion();
   private servicioMantenimiento: ServicioMantenimeinto
@@ -161,11 +196,123 @@ export default class ControladorMantenimiento {
           }
         }
 
+        Object.defineProperty(registro, '__fila__', {
+          value: numeroFila,
+          enumerable: false,
+        });
+
         registros.push(registro);
       }
     });
 
     return { registros, errores: erroresFilas, totalFilas };
+  }
+
+  private obtenerValorCampoRegistro(registro: Record<string, any>, definicion: DefinicionTipoDato): { valor: any, llave: string | null } {
+    const candidatos = new Map<string, string>();
+    const principal = definicion.campo.trim().toLowerCase();
+    if (principal) {
+      candidatos.set(principal, definicion.campo);
+    }
+    for (const alternativa of definicion.alternativas ?? []) {
+      const llaveAlterna = alternativa.trim().toLowerCase();
+      if (llaveAlterna && !candidatos.has(llaveAlterna)) {
+        candidatos.set(llaveAlterna, alternativa);
+      }
+    }
+
+    for (const llave of Object.keys(registro)) {
+      const normalizada = llave.trim().toLowerCase();
+      if (candidatos.has(normalizada)) {
+        return { valor: registro[llave], llave };
+      }
+    }
+
+    return { valor: undefined, llave: null };
+  }
+
+  private validarTiposDeDato(registros: any[], definiciones: DefinicionTipoDato[]): string[] {
+    const errores: string[] = [];
+
+    registros.forEach((registro, indice) => {
+      const fila = (registro as any).__fila__ ?? (indice + 2);
+
+      for (const definicion of definiciones) {
+        const { valor, llave } = this.obtenerValorCampoRegistro(registro, definicion);
+        const estaVacio =
+          valor === null ||
+          valor === undefined ||
+          (typeof valor === 'string' && valor.trim() === '');
+
+        if (estaVacio) {
+          continue;
+        }
+
+        const etiqueta = definicion.etiqueta ?? definicion.campo;
+        const esValido = definicion.tipo === 'numero'
+          ? this.esNumeroValido(valor)
+          : this.esTextoValido(valor);
+
+        if (!esValido) {
+          const tipoEsperado = definicion.tipo === 'numero' ? 'número' : 'texto';
+          errores.push(`Fila ${fila}: la columna ${etiqueta} debe contener un ${tipoEsperado} válido.`);
+          continue;
+        }
+
+        let valorNormalizado: any = valor;
+        if (definicion.tipo === 'numero' && typeof valor === 'string') {
+          valorNormalizado = valor.trim();
+        }
+
+        if (definicion.tipo === 'texto' && typeof valor === 'string') {
+          valorNormalizado = valor.trim();
+        }
+
+        if (
+          definicion.maxLongitud !== undefined &&
+          definicion.tipo === 'texto' &&
+          typeof valorNormalizado === 'string' &&
+          valorNormalizado.length > definicion.maxLongitud
+        ) {
+          errores.push(
+            `Fila ${fila}: la columna ${etiqueta} no puede superar ${definicion.maxLongitud} caracteres.`
+          );
+          continue;
+        }
+
+        if (llave) {
+          if (definicion.tipo === 'numero' && typeof valorNormalizado === 'string') {
+            registro[llave] = valorNormalizado;
+          }
+
+          if (definicion.tipo === 'texto' && typeof valorNormalizado === 'string') {
+            registro[llave] = valorNormalizado;
+          }
+        }
+      }
+    });
+
+    return errores;
+  }
+
+  private esNumeroValido(valor: any): boolean {
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor);
+    }
+
+    if (typeof valor === 'string') {
+      const texto = valor.trim();
+      if (texto === '') {
+        return false;
+      }
+      return /^[0-9]+$/.test(texto);
+    }
+
+    return false;
+  }
+
+  private esTextoValido(valor: any): boolean {
+    return typeof valor === 'string';
   }
 
   private normalizarValorExcel(clave: string, celda: ExcelJS.Cell): any {
@@ -1087,6 +1234,11 @@ export default class ControladorMantenimiento {
         return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
       }
 
+      const erroresTipos = this.validarTiposDeDato(registros, DEFINICIONES_PREVENTIVO_CORRECTIVO);
+      if (erroresTipos.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, erroresTipos));
+      }
+
       const payload = await request.obtenerPayloadJWT();
       const usuario = payload.documento;
       const idRol = payload.idRol;
@@ -1165,6 +1317,11 @@ export default class ControladorMantenimiento {
         return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
       }
 
+      const erroresTipos = this.validarTiposDeDato(registros, DEFINICIONES_PREVENTIVO_CORRECTIVO);
+      if (erroresTipos.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, erroresTipos));
+      }
+
       const payload = await request.obtenerPayloadJWT();
       const usuario = payload.documento;
       const idRol = payload.idRol;
@@ -1241,6 +1398,11 @@ export default class ControladorMantenimiento {
 
       if (!Array.isArray(registros) || registros.length === 0) {
         return response.status(400).json(this.construirResumen(totalFilas, 0, ['El archivo no contiene registros para procesar']));
+      }
+
+      const erroresTipos = this.validarTiposDeDato(registros, DEFINICIONES_ALISTAMIENTO);
+      if (erroresTipos.length > 0) {
+        return response.status(400).json(this.construirResumen(totalFilas, 0, erroresTipos));
       }
 
       const payload = await request.obtenerPayloadJWT();
