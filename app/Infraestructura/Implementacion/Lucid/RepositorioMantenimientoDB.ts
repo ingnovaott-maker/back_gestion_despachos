@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-member-accessibility */
 
 import { Exception } from "@adonisjs/core/build/standalone";
-import { MapeadorPaginacionDB } from "./MapeadorPaginacionDB";
 import { RepositorioMantenimiento } from "App/Dominio/Repositorios/RepositorioMantenimiento";
 import Env from "@ioc:Adonis/Core/Env";
 import axios from "axios";
@@ -19,6 +18,7 @@ import TblMantenimientoJob, { TipoMantenimientoJob } from "App/Infraestructura/D
 import { OpcionesSincronizacion } from "App/Dominio/Repositorios/RepositorioMantenimiento";
 import type { ModelQueryBuilderContract } from "@ioc:Adonis/Lucid/Orm";
 import { Paginable, TrabajoProgramado } from "App/Dominio/Tipos/Tipos";
+import { Paginador } from "App/Dominio/Paginador";
 
 export class MantenimientoPendienteError extends Error {}
 
@@ -2842,88 +2842,89 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       direccion?: 'asc' | 'desc'
     }
   ): Promise<Paginable<TrabajoProgramado>> {
-
-    console.log({filtros});
-
-    const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
+    const paginaNormalizada = pagina && pagina > 0 ? pagina : 1;
+    const limiteNormalizado = limite && limite > 0 ? limite : 10;
 
     const { nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
-    await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
 
-    if (filtros?.estado) {
-      const estadoSolicitado = filtros.estado;
-      query.andWhere((estadoBuilder) => {
-        estadoBuilder.where('tmj_estado', estadoSolicitado);
+    const aplicarFiltros = (builder: ModelQueryBuilderContract<typeof TblMantenimientoJob>) => {
+      if (filtros?.estado) {
+        const estadoSolicitado = filtros.estado;
+        builder.andWhere((estadoBuilder) => {
+          estadoBuilder.where('tmj_estado', estadoSolicitado);
 
-        estadoBuilder.orWhereIn('tmj_mantenimiento_local_id', (subquery) => {
-          subquery
-            .from(TblMantenimientoJob.table)
-            .select('tmj_mantenimiento_local_id')
-            .where('tmj_estado', estadoSolicitado)
-            .whereNotNull('tmj_mantenimiento_local_id');
+          estadoBuilder.orWhereIn('tmj_mantenimiento_local_id', (subquery) => {
+            subquery
+              .from(TblMantenimientoJob.table)
+              .select('tmj_mantenimiento_local_id')
+              .where('tmj_estado', estadoSolicitado)
+              .whereNotNull('tmj_mantenimiento_local_id');
+          });
+
+          estadoBuilder.orWhereIn('tmj_detalle_id', (subquery) => {
+            subquery
+              .from(TblMantenimientoJob.table)
+              .select('tmj_detalle_id')
+              .where('tmj_estado', estadoSolicitado)
+              .whereNotNull('tmj_detalle_id');
+          });
+
+          estadoBuilder.orWhereExists((subquery) => {
+            subquery
+              .select('rel.tmj_id')
+              .from({ rel: TblMantenimientoJob.table })
+              .where('rel.tmj_estado', estadoSolicitado)
+              .andWhereRaw("LOWER(COALESCE(rel.tmj_payload->>'placa', '')) <> ''")
+              .andWhereRaw(
+                "LOWER(COALESCE(rel.tmj_payload->>'placa', '')) = LOWER(COALESCE(tbl_mantenimiento_jobs.tmj_payload->>'placa', ''))"
+              )
+              .andWhereRaw("COALESCE(rel.tmj_vigilado_id, '') = COALESCE(tbl_mantenimiento_jobs.tmj_vigilado_id, '')");
+          });
         });
-
-        estadoBuilder.orWhereIn('tmj_detalle_id', (subquery) => {
-          subquery
-            .from(TblMantenimientoJob.table)
-            .select('tmj_detalle_id')
-            .where('tmj_estado', estadoSolicitado)
-            .whereNotNull('tmj_detalle_id');
-        });
-
-        estadoBuilder.orWhereExists((subquery) => {
-          subquery
-            .select('rel.tmj_id')
-            .from({ rel: TblMantenimientoJob.table })
-            .where('rel.tmj_estado', estadoSolicitado)
-            .andWhereRaw("LOWER(COALESCE(rel.tmj_payload->>'placa', '')) <> ''")
-            .andWhereRaw(
-              "LOWER(COALESCE(rel.tmj_payload->>'placa', '')) = LOWER(COALESCE(tbl_mantenimiento_jobs.tmj_payload->>'placa', ''))"
-            )
-            .andWhereRaw("COALESCE(rel.tmj_vigilado_id, '') = COALESCE(tbl_mantenimiento_jobs.tmj_vigilado_id, '')");
-        });
-      });
-    }
-    if (filtros?.tipo) {
-      query.andWhere('tmj_tipo', filtros.tipo);
-    }
-    if (filtros?.placa) {
-      const placaTexto = String(filtros.placa).trim();
-      if (placaTexto.length > 0) {
-        const placaNormalizada = placaTexto.toLowerCase();
-        query.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
       }
-    }
-    if (nitVigilado) {
-      query.andWhere('tmj_vigilado_id', nitVigilado);
-    }
 
-    if (filtros?.fecha) {
-      const fechaFiltro = DateTime.fromISO(String(filtros.fecha));
-      if (fechaFiltro.isValid) {
-        const fechaISO = fechaFiltro.toISODate();
-        query.andWhereRaw('DATE(tmj_creado) = ?', [fechaISO]);
+      if (filtros?.tipo) {
+        builder.andWhere('tmj_tipo', filtros.tipo);
       }
-    }
 
-    if (typeof filtros?.sincronizacionEstado === 'string') {
-      switch (filtros.sincronizacionEstado) {
-        case 'pendiente':
-          query.andWhereNull('tmj_fecha_sincronizacion');
-          break;
-        case 'sincronizado':
-          query.andWhereNotNull('tmj_fecha_sincronizacion');
-          break;
-        case 'error':
-          query.andWhereNotNull('tmj_ultimo_error');
-          break;
-        default:
-          break;
+      if (filtros?.placa) {
+        const placaTexto = String(filtros.placa).trim();
+        if (placaTexto.length > 0) {
+          const placaNormalizada = placaTexto.toLowerCase();
+          builder.andWhereRaw("LOWER(COALESCE(tmj_payload->>'placa', '')) = ?", [placaNormalizada]);
+        }
       }
-    }
 
-    if (orden?.campo) {
-      const direccion = orden.direccion ?? 'desc';
+      if (nitVigilado) {
+        builder.andWhere('tmj_vigilado_id', nitVigilado);
+      }
+
+      if (filtros?.fecha) {
+        const fechaFiltro = DateTime.fromISO(String(filtros.fecha));
+        if (fechaFiltro.isValid) {
+          const fechaISO = fechaFiltro.toISODate();
+          builder.andWhereRaw('DATE(tmj_creado) = ?', [fechaISO]);
+        }
+      }
+
+      if (typeof filtros?.sincronizacionEstado === 'string') {
+        switch (filtros.sincronizacionEstado) {
+          case 'pendiente':
+            builder.andWhereNull('tmj_fecha_sincronizacion');
+            break;
+          case 'sincronizado':
+            builder.andWhereNotNull('tmj_fecha_sincronizacion');
+            break;
+          case 'error':
+            builder.andWhereNotNull('tmj_ultimo_error');
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    const aplicarOrden = (builder: ModelQueryBuilderContract<typeof TblMantenimientoJob>) => {
       const camposPermitidos = new Set([
         'tmj_creado',
         'tmj_actualizado',
@@ -2933,23 +2934,101 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         'tmj_reintentos',
       ]);
 
-      if (camposPermitidos.has(orden.campo)) {
-        query.orderBy(orden.campo, direccion);
+      if (orden?.campo && camposPermitidos.has(orden.campo)) {
+        const direccion = orden.direccion ?? 'desc';
+        builder.orderBy(orden.campo, direccion);
+        if (orden.campo !== 'tmj_creado') {
+          builder.orderBy('tmj_creado', 'desc');
+        }
+      } else {
+        builder.orderBy('tmj_creado', 'desc');
+      }
+    };
+
+    const baseQuery = TblMantenimientoJob.query();
+    await this.restringirTrabajosPorUsuario(baseQuery, nitVigilado, idRol);
+    aplicarFiltros(baseQuery);
+
+    const clavesOrden: string[] = [];
+    const registrosPorClave = new Map<string, any>();
+
+    const preferir = (actual: any, candidato: any) => {
+      const actualDetalle = actual?.detalle ? 1 : 0;
+      const candidatoDetalle = candidato?.detalle ? 1 : 0;
+      if (candidatoDetalle > actualDetalle) {
+        return candidato;
+      }
+      if (candidatoDetalle < actualDetalle) {
+        return actual;
+      }
+
+      const marcaActual = actual?.updatedAt ?? actual?.createdAt ?? null;
+      const marcaCandidato = candidato?.updatedAt ?? candidato?.createdAt ?? null;
+      if (marcaActual && marcaCandidato) {
+        return String(marcaCandidato) > String(marcaActual) ? candidato : actual;
+      }
+
+      return candidatoDetalle >= actualDetalle ? candidato : actual;
+    };
+
+    const chunkSize = Math.max(limiteNormalizado * 4, limiteNormalizado);
+    let paginaFuente = 1;
+    let hayMas = true;
+
+    while (hayMas) {
+      const chunkQuery = baseQuery.clone() as ModelQueryBuilderContract<typeof TblMantenimientoJob>;
+      aplicarOrden(chunkQuery);
+      chunkQuery.forPage(paginaFuente, chunkSize);
+      const chunkTrabajos = await chunkQuery;
+
+      if (chunkTrabajos.length === 0) {
+        hayMas = false;
+        break;
+      }
+
+      const trabajosMapeados = await this.mapearTrabajosConDetalle(chunkTrabajos);
+      const trabajosUnificados = await this.vincularCabeceras(trabajosMapeados);
+
+      for (const trabajo of trabajosUnificados) {
+        const clave = this.obtenerClaveAgrupacionTrabajo(trabajo);
+        if (!clave) {
+          continue;
+        }
+
+        const existente = registrosPorClave.get(clave);
+        if (!existente) {
+          registrosPorClave.set(clave, trabajo);
+          clavesOrden.push(clave);
+          continue;
+        }
+
+        registrosPorClave.set(clave, preferir(existente, trabajo));
+      }
+
+      paginaFuente += 1;
+      if (chunkTrabajos.length < chunkSize) {
+        hayMas = false;
       }
     }
 
-    const paginaNormalizada = pagina && pagina > 0 ? pagina : 1;
-    const limiteNormalizado = limite && limite > 0 ? limite : 10;
+    const totalRegistros = clavesOrden.length;
+    const totalPaginas = limiteNormalizado > 0 && totalRegistros > 0
+      ? Math.ceil(totalRegistros / limiteNormalizado)
+      : 0;
 
-    const trabajosPaginados = await query.paginate(paginaNormalizada, limiteNormalizado);
+    const inicio = (paginaNormalizada - 1) * limiteNormalizado;
+    const fin = inicio + limiteNormalizado;
 
-    const trabajos = trabajosPaginados.all();
-    const trabajosMapeados = await this.mapearTrabajosConDetalle(trabajos);
-    const trabajosUnificados = await this.vincularCabeceras(trabajosMapeados);
+    const datos = clavesOrden
+      .slice(inicio, fin)
+      .map((clave) => registrosPorClave.get(clave))
+      .filter((item): item is TrabajoProgramado => Boolean(item));
+
+    const paginacion = new Paginador(totalRegistros, paginaNormalizada, totalPaginas);
 
     return {
-      paginacion: MapeadorPaginacionDB.obtenerPaginacion(trabajosPaginados),
-      datos: trabajosUnificados,
+      paginacion,
+      datos,
     };
   }
 
