@@ -3,5 +3,6 @@ export interface PeticionActualizarUsuario {
     apellido?: string,
     telefono?: string,
     correo?: string,
-    estaddo?: string,
+    estado?: boolean,
+    tokenAutorizado?: string
 }
