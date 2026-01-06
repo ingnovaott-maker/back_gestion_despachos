@@ -2842,13 +2842,47 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       direccion?: 'asc' | 'desc'
     }
   ): Promise<Paginable<TrabajoProgramado>> {
+
+    console.log({filtros});
+
     const query = TblMantenimientoJob.query().orderBy('tmj_creado', 'desc');
 
     const { nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
     await this.restringirTrabajosPorUsuario(query, nitVigilado, idRol);
 
     if (filtros?.estado) {
-      query.andWhere('tmj_estado', filtros.estado);
+      const estadoSolicitado = filtros.estado;
+      query.andWhere((estadoBuilder) => {
+        estadoBuilder.where('tmj_estado', estadoSolicitado);
+
+        estadoBuilder.orWhereIn('tmj_mantenimiento_local_id', (subquery) => {
+          subquery
+            .from(TblMantenimientoJob.table)
+            .select('tmj_mantenimiento_local_id')
+            .where('tmj_estado', estadoSolicitado)
+            .whereNotNull('tmj_mantenimiento_local_id');
+        });
+
+        estadoBuilder.orWhereIn('tmj_detalle_id', (subquery) => {
+          subquery
+            .from(TblMantenimientoJob.table)
+            .select('tmj_detalle_id')
+            .where('tmj_estado', estadoSolicitado)
+            .whereNotNull('tmj_detalle_id');
+        });
+
+        estadoBuilder.orWhereExists((subquery) => {
+          subquery
+            .select('rel.tmj_id')
+            .from({ rel: TblMantenimientoJob.table })
+            .where('rel.tmj_estado', estadoSolicitado)
+            .andWhereRaw("LOWER(COALESCE(rel.tmj_payload->>'placa', '')) <> ''")
+            .andWhereRaw(
+              "LOWER(COALESCE(rel.tmj_payload->>'placa', '')) = LOWER(COALESCE(tbl_mantenimiento_jobs.tmj_payload->>'placa', ''))"
+            )
+            .andWhereRaw("COALESCE(rel.tmj_vigilado_id, '') = COALESCE(tbl_mantenimiento_jobs.tmj_vigilado_id, '')");
+        });
+      });
     }
     if (filtros?.tipo) {
       query.andWhere('tmj_tipo', filtros.tipo);
