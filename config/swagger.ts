@@ -12,9 +12,9 @@ export default {
 		definition: {
 			openapi: '3.0.0',
 			info: {
-				title: 'Documentación APIs TERMINALES',
+				title: 'Documentación APIs Sicov',
 				version: '1.0.0',
-				description: 'Documentación de las APIs del aplicativo TERMINALES'
+				description: 'Documentación de las APIs del aplicativo Sicov'
 			},
 			components: {
 				securitySchemes: {
