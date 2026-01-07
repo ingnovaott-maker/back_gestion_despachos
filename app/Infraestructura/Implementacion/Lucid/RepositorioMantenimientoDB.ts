@@ -2846,6 +2846,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const limiteNormalizado = limite && limite > 0 ? limite : 10;
 
     const { nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
+    const estadoFiltrado = typeof filtros?.estado === 'string' && filtros.estado.trim() !== ''
+      ? filtros.estado.trim().toLowerCase()
+      : null;
 
     const aplicarFiltros = (builder: ModelQueryBuilderContract<typeof TblMantenimientoJob>) => {
       if (filtros?.estado) {
@@ -2952,7 +2955,48 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const clavesOrden: string[] = [];
     const registrosPorClave = new Map<string, any>();
 
+    const coincideConEstado = (registro: any, estadoObjetivo: string | null): boolean => {
+      if (!estadoObjetivo) {
+        return true;
+      }
+
+      const comparar = (valor: unknown) => {
+        return typeof valor === 'string' && valor.trim().toLowerCase() === estadoObjetivo;
+      };
+
+      if (comparar(registro?.estado)) {
+        return true;
+      }
+
+      if (Array.isArray(registro?.trabajosAsociados)) {
+        for (const asociado of registro.trabajosAsociados) {
+          if (comparar(asociado?.estado)) {
+            return true;
+          }
+        }
+      }
+
+      if (comparar(registro?.cabecera?.estado)) {
+        return true;
+      }
+
+      return false;
+    };
+
     const preferir = (actual: any, candidato: any) => {
+      if (estadoFiltrado) {
+        const actualCoincide = coincideConEstado(actual, estadoFiltrado);
+        const candidatoCoincide = coincideConEstado(candidato, estadoFiltrado);
+
+        if (candidatoCoincide && !actualCoincide) {
+          return candidato;
+        }
+
+        if (actualCoincide && !candidatoCoincide) {
+          return actual;
+        }
+      }
+
       const actualDetalle = actual?.detalle ? 1 : 0;
       const candidatoDetalle = candidato?.detalle ? 1 : 0;
       if (candidatoDetalle > actualDetalle) {
@@ -3011,7 +3055,14 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
-    const totalRegistros = clavesOrden.length;
+    const clavesElegibles = estadoFiltrado
+      ? clavesOrden.filter((clave) => {
+          const registro = registrosPorClave.get(clave);
+          return coincideConEstado(registro, estadoFiltrado);
+        })
+      : [...clavesOrden];
+
+    const totalRegistros = clavesElegibles.length;
     const totalPaginas = limiteNormalizado > 0 && totalRegistros > 0
       ? Math.ceil(totalRegistros / limiteNormalizado)
       : 0;
@@ -3019,10 +3070,19 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const inicio = (paginaNormalizada - 1) * limiteNormalizado;
     const fin = inicio + limiteNormalizado;
 
-    const datos = clavesOrden
+    const datos = clavesElegibles
       .slice(inicio, fin)
       .map((clave) => registrosPorClave.get(clave))
-      .filter((item): item is TrabajoProgramado => Boolean(item));
+      .filter((item): item is TrabajoProgramado => Boolean(item))
+      .map((trabajo) => {
+        if (estadoFiltrado && coincideConEstado(trabajo, estadoFiltrado)) {
+          return {
+            ...trabajo,
+            estado: estadoFiltrado,
+          };
+        }
+        return trabajo;
+      });
 
     const paginacion = new Paginador(totalRegistros, paginaNormalizada, totalPaginas);
 
