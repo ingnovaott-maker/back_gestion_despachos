@@ -39,7 +39,7 @@ export class RepositorioRolDB implements RepositorioRol {
 
     async obtenerModulos (params: any): Promise<{modulos: Modulo[], paginacion: Paginador}> {
     const modulos: Modulo[] = []
-    const modulosBD = await TblModulos.query().orderBy('mod_nombre', 'desc').paginate(params.pagina, params.limite)
+    const modulosBD = await TblModulos.query().orderBy('mod_nombre', 'desc').where('mod_estado', true).paginate(params.pagina, params.limite)
     modulosBD.forEach(moduloBD => {
       modulos.push(moduloBD.obtenerModulo())
     })
