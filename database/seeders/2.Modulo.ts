@@ -55,7 +55,7 @@ export default class ModulosSeeder extends BaseSeeder {
         actualizacion: DateTime.now(),
         creacion: DateTime.now(),
       },
-      {
+     /*  {
         id: 6,
         nombre: 'Llegadas',
         nombreMostrar: 'Llegadas',
@@ -64,7 +64,7 @@ export default class ModulosSeeder extends BaseSeeder {
         estado: true,
         actualizacion: DateTime.now(),
         creacion: DateTime.now(),
-      }
+      } */
 
     ])
   }
