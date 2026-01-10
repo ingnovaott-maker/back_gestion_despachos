@@ -5,7 +5,7 @@ import { extname } from 'path'
 import Drive from '@ioc:Adonis/Core/Drive'
 
 Route.get('/', async ({ response }: HttpContextContract) => {
-  response.status(200).send('¡Bienvenido!')
+  response.status(200).send('¡Bienvenido a gesmovil API!')
 })
 
 Route.get('/recursos/*', async ({request, response}:HttpContextContract) => {
