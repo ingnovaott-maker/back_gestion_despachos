@@ -913,8 +913,18 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
-    if (typeof payload.nombresResponsable === 'string') {
-      campos.nombresResponsable = payload.nombresResponsable.trim();
+    const responsablePreventivo = (() => {
+      if (typeof payload.nombresResponsable === 'string' && payload.nombresResponsable.trim() !== '') {
+        return payload.nombresResponsable.trim();
+      }
+      if (typeof payload.nombreIngeniero === 'string' && payload.nombreIngeniero.trim() !== '') {
+        return payload.nombreIngeniero.trim();
+      }
+      return null;
+    })();
+
+    if (responsablePreventivo) {
+      campos.nombresResponsable = responsablePreventivo;
     }
 
     if (typeof payload.detalleActividades === 'string') {
@@ -973,8 +983,18 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
-    if (typeof payload.nombresResponsable === 'string') {
-      campos.nombresResponsable = payload.nombresResponsable.trim();
+    const responsableCorrectivo = (() => {
+      if (typeof payload.nombresResponsable === 'string' && payload.nombresResponsable.trim() !== '') {
+        return payload.nombresResponsable.trim();
+      }
+      if (typeof payload.nombreIngeniero === 'string' && payload.nombreIngeniero.trim() !== '') {
+        return payload.nombreIngeniero.trim();
+      }
+      return null;
+    })();
+
+    if (responsableCorrectivo) {
+      campos.nombresResponsable = responsableCorrectivo;
     }
 
     if (typeof payload.detalleActividades === 'string') {
@@ -3137,6 +3157,30 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
   }
 
 
+  private normalizarPayloadDetallePorTipo(
+    jobTipo: string | null | undefined,
+    payload: Record<string, any> | null | undefined
+  ): Record<string, any> | null | undefined {
+    if (!payload || typeof payload !== 'object') {
+      return payload;
+    }
+
+    const resultado = { ...payload };
+
+    if ((jobTipo === 'preventivo' || jobTipo === 'correctivo') && typeof resultado.nombreIngeniero === 'string') {
+      const nombre = resultado.nombreIngeniero.trim();
+      if (nombre) {
+        const existente = typeof resultado.nombresResponsable === 'string' ? resultado.nombresResponsable.trim() : '';
+        if (!existente) {
+          resultado.nombresResponsable = nombre;
+        }
+      }
+    }
+
+    return resultado;
+  }
+
+
 
   async reintentarTrabajoFallido(
     jobId: number,
@@ -3212,32 +3256,44 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         delete restante.detalle;
         delete restante.cuerpo;
 
-        if (Object.keys(restante).length > 0 && payloadParaJob === undefined) {
-          payloadParaJob = restante;
+        if (Object.keys(restante).length > 0) {
+          if (payloadCabecera === undefined) {
+            payloadCabecera = restante;
+          }
+          if (payloadParaJob === undefined) {
+            payloadParaJob = restante;
+          }
         }
       } else {
-        payloadParaJob = bruto;
+        if (jobObjetivo.tipo === 'base') {
+          payloadCabecera = bruto;
+          payloadParaJob = bruto;
+        } else {
+          payloadParaJob = bruto;
+        }
       }
     }
 
-    if (jobObjetivo.tipo === 'base') {
-      const payloadBase = payloadParaJob !== undefined ? payloadParaJob : payloadCabecera;
-      if (payloadBase !== undefined) {
-        jobObjetivo.payload = payloadBase ?? null;
-        await this.actualizarDatosLocales(jobObjetivo, payloadBase ?? undefined);
-      }
-    } else {
-      if (payloadCabecera !== undefined && jobCabecera) {
-        jobCabecera.payload = payloadCabecera ?? null;
-        await this.actualizarDatosLocales(jobCabecera, payloadCabecera ?? undefined);
-        await jobCabecera.save();
-      }
+    if (jobObjetivo.tipo === 'base' && payloadCabecera === undefined && payloadParaJob !== undefined) {
+      // Garantiza que un payload único mantenga sincronizados cabecera y detalle
+      payloadCabecera = payloadParaJob;
+    }
 
-      if (payloadParaJob !== undefined) {
-        job.payload = payloadParaJob ?? null;
-        await this.actualizarDatosLocales(job, payloadParaJob ?? undefined);
-        await job.save();
-      }
+    const jobCabeceraActualizar = jobObjetivo.tipo === 'base' ? jobObjetivo : jobCabecera;
+    const jobDetalleActualizar = jobObjetivo.tipo === 'base' ? (job.tipo !== 'base' ? job : null) : jobObjetivo;
+
+    if (jobCabeceraActualizar && payloadCabecera !== undefined) {
+      const payloadNormalizadoCabecera = this.normalizarPayloadDetallePorTipo(jobCabeceraActualizar.tipo, payloadCabecera);
+      jobCabeceraActualizar.payload = payloadNormalizadoCabecera ?? null;
+      await this.actualizarDatosLocales(jobCabeceraActualizar, payloadNormalizadoCabecera ?? undefined);
+      await jobCabeceraActualizar.save();
+    }
+
+    if (jobDetalleActualizar && payloadParaJob !== undefined) {
+      const payloadNormalizadoDetalle = this.normalizarPayloadDetallePorTipo(jobDetalleActualizar.tipo, payloadParaJob);
+      jobDetalleActualizar.payload = payloadNormalizadoDetalle ?? null;
+      await this.actualizarDatosLocales(jobDetalleActualizar, payloadNormalizadoDetalle ?? undefined);
+      await jobDetalleActualizar.save();
     }
 
     switch (accion) {

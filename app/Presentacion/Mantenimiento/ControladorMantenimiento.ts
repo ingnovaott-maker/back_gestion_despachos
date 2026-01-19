@@ -84,6 +84,47 @@ export default class ControladorMantenimiento {
     return response.status(500).send({ mensaje: 'Error interno del servidor' })
   }
 
+  private obtenerExtensionCliente(nombre?: string | null): string | null {
+    if (!nombre) {
+      return null
+    }
+    const indice = nombre.lastIndexOf('.')
+    if (indice === -1 || indice === nombre.length - 1) {
+      return null
+    }
+    return nombre.slice(indice + 1).toLowerCase()
+  }
+
+  private esArchivoExcelXlsx(archivo: MultipartFileContract): boolean {
+    const extension = this.obtenerExtensionCliente(archivo.clientName ?? archivo.fileName)
+    if (extension !== 'xlsx') {
+      return false
+    }
+
+    const contentType = archivo.headers?.['content-type']?.toLowerCase()
+    if (!contentType) {
+      return true
+    }
+
+    if (contentType.includes('spreadsheetml')) {
+      return true
+    }
+
+    return contentType === 'application/octet-stream'
+  }
+
+  private obtenerErrorArchivoExcel(archivo: MultipartFileContract): string | null {
+    if (!archivo.isValid) {
+      return archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido'
+    }
+
+    if (!this.esArchivoExcelXlsx(archivo)) {
+      return 'El archivo debe estar en formato XLSX'
+    }
+
+    return null
+  }
+
   private async leerRegistrosDesdeExcel(
     archivo: MultipartFileContract,
     columnasRequeridas?: Array<{ nombre: string; descripcion?: string }>
@@ -1193,12 +1234,12 @@ export default class ControladorMantenimiento {
 
   public async cargaMasivaPreventivoExcel({ request, response }: HttpContextContract) {
     try {
-      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      const archivo = request.file('archivo', { size: '5mb' });
       if (!archivo) {
         return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
-      if (!archivo.isValid) {
-        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+      const mensajeError = this.obtenerErrorArchivoExcel(archivo);
+      if (mensajeError) {
         return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
@@ -1218,6 +1259,8 @@ export default class ControladorMantenimiento {
       try {
         registrosExcel = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
       } catch (error: any) {
+        console.log({error});
+
         if (error?.status === 400 && typeof error.message === 'string') {
           return response.status(400).json(this.construirResumen(0, 0, [error.message]));
         }
@@ -1276,12 +1319,12 @@ export default class ControladorMantenimiento {
 
   public async cargaMasivaCorrectivoExcel({ request, response }: HttpContextContract) {
     try {
-      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      const archivo = request.file('archivo', { size: '5mb' });
       if (!archivo) {
         return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
-      if (!archivo.isValid) {
-        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+      const mensajeError = this.obtenerErrorArchivoExcel(archivo);
+      if (mensajeError) {
         return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
@@ -1359,12 +1402,12 @@ export default class ControladorMantenimiento {
 
   public async cargaMasivaAlistamientoExcel({ request, response }: HttpContextContract) {
     try {
-      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      const archivo = request.file('archivo', { size: '5mb' });
       if (!archivo) {
         return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
-      if (!archivo.isValid) {
-        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+      const mensajeError = this.obtenerErrorArchivoExcel(archivo);
+      if (mensajeError) {
         return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
@@ -1442,12 +1485,12 @@ export default class ControladorMantenimiento {
 
   public async cargaMasivaAutorizacionExcel({ request, response }: HttpContextContract) {
     try {
-      const archivo = request.file('archivo', { extnames: ['xlsx'], size: '5mb' });
+      const archivo = request.file('archivo', { size: '5mb' });
       if (!archivo) {
         return response.status(400).json(this.construirResumen(0, 0, ['Debe adjuntar el archivo en el campo "archivo"']));
       }
-      if (!archivo.isValid) {
-        const mensajeError = archivo.errors?.map((error) => error.message).join(', ') || 'Archivo inválido';
+      const mensajeError = this.obtenerErrorArchivoExcel(archivo);
+      if (mensajeError) {
         return response.status(400).json(this.construirResumen(0, 0, [mensajeError]));
       }
 
