@@ -1,6 +1,7 @@
-import { BaseModel, column, ManyToMany, manyToMany} from '@ioc:Adonis/Lucid/Orm';
+import { BaseModel, column, ManyToMany, manyToMany, beforeCreate } from '@ioc:Adonis/Lucid/Orm';
 import { DateTime } from 'luxon';
 import TblActividadesAlistamiento from './ActividadesAlistamiento';
+import Env from '@ioc:Adonis/Core/Env';
 
 export default class TblAlistamiento extends BaseModel {
 
@@ -31,4 +32,10 @@ export default class TblAlistamiento extends BaseModel {
   })
   public actividades :ManyToMany<typeof TblActividadesAlistamiento>
 
+  @beforeCreate()
+  public static ajustarFechaCreacion(alistamiento: TblAlistamiento) {
+    const offset = Number.parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '0'), 10);
+    const horas = Number.isNaN(offset) ? 0 : offset;
+    alistamiento.createdAt = DateTime.now().minus({ hours: horas });
+  }
 }

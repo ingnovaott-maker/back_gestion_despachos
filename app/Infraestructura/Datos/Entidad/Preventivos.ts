@@ -1,5 +1,6 @@
-import { BaseModel, column} from '@ioc:Adonis/Lucid/Orm';
+import { BaseModel, column, beforeCreate } from '@ioc:Adonis/Lucid/Orm';
 import { DateTime } from 'luxon';
+import Env from '@ioc:Adonis/Core/Env';
 
 export default class TblPreventivo extends BaseModel {
 
@@ -21,4 +22,10 @@ export default class TblPreventivo extends BaseModel {
   @column.dateTime({ autoCreate: true , columnName: 'tpv_creado'}) public createdAt: DateTime
   @column.dateTime({ autoCreate: true, autoUpdate: true, columnName: 'tpv_actualizado' }) public updatedAt: DateTime
 
+  @beforeCreate()
+  public static ajustarFechaCreacion(preventivo: TblPreventivo) {
+    const offset = Number.parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '0'), 10);
+    const horas = Number.isNaN(offset) ? 0 : offset;
+    preventivo.createdAt = DateTime.now().minus({ hours: horas });
+  }
 }

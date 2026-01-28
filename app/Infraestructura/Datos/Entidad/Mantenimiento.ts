@@ -1,6 +1,7 @@
-import { BaseModel, column, HasOne, hasOne} from '@ioc:Adonis/Lucid/Orm';
+import { BaseModel, column, HasOne, hasOne, beforeCreate } from '@ioc:Adonis/Lucid/Orm';
 import { DateTime } from 'luxon';
 import TblAutorizaciones from './Autorizaciones';
+import Env from '@ioc:Adonis/Core/Env';
 
 export default class TblMantenimiento extends BaseModel {
 
@@ -23,5 +24,11 @@ export default class TblMantenimiento extends BaseModel {
   })
   public autorizacion:HasOne<typeof TblAutorizaciones>
 
+  @beforeCreate()
+  public static ajustarFechaCreacion(mantenimiento: TblMantenimiento) {
+    const offset = Number.parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '0'), 10);
+    const horas = Number.isNaN(offset) ? 0 : offset;
+    mantenimiento.createdAt = DateTime.now().minus({ hours: horas });
+  }
 
 }
