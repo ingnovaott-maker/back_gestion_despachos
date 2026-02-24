@@ -743,8 +743,8 @@ export default class ControladorMantenimiento {
         mantenimientoId
       } = request.all();
       if (!fechaViaje || !origen || !destino || !tipoIdentificacionNna || !numeroIdentificacionNna ||
-          !nombresApellidosNna || !situacionDiscapacidad || !tipoDiscapacidad || !perteneceComunidadEtnica ||
-          !tipoPoblacionEtnica || !tipoIdentificacionOtorgante || !numeroIdentificacionOtorgante ||
+          !nombresApellidosNna || !situacionDiscapacidad || !perteneceComunidadEtnica ||
+          !tipoIdentificacionOtorgante || !numeroIdentificacionOtorgante ||
           !nombresApellidosOtorgante || !numeroTelefonicoOtorgante || !correoElectronicoOtorgante ||
           !direccionFisicaOtorgante || !sexoOtorgante || !calidadActua || !tipoIdentificacionAutorizadoViajar ||
           !numeroIdentificacionAutorizadoViajar || !nombresApellidosAutorizadoViajar ||
