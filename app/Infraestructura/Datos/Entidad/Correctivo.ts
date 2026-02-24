@@ -12,7 +12,7 @@ export default class TblCorrectivo extends BaseModel {
   @column({ columnName: 'tcv_nit' }) public nit: string
   @column({ columnName: 'tcv_razon_social' }) public razonSocial: string
   @column({ columnName: 'tcv_tipo_identificacion' }) public tipoIdentificacion: number
-  @column({ columnName: 'tcv_numero_identificacion' }) public numeroIdentificacion: number
+  @column({ columnName: 'tcv_numero_identificacion' }) public numeroIdentificacion: string
   @column({ columnName: 'tcv_nombres_responsable' }) public nombresResponsable: string
   @column({ columnName: 'tcv_mantenimiento_id' }) public mantenimientoId: number
   @column({ columnName: 'tcv_detalle_actividades' }) public detalleActividades: string

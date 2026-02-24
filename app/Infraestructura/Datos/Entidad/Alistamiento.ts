@@ -9,10 +9,10 @@ export default class TblAlistamiento extends BaseModel {
 
   @column({ columnName: 'tba_placa' }) public placa: string
   @column({ columnName: 'tba_tipo_identificacion_responsable' }) public tipoIdentificacionResponsable: number
-  @column({ columnName: 'tba_numero_identificacion_responsable' }) public numeroIdentificacionResponsable: number
+  @column({ columnName: 'tba_numero_identificacion_responsable' }) public numeroIdentificacionResponsable: string
   @column({ columnName: 'tba_nombres_responsable' }) public nombreResponsable: string
   @column({ columnName: 'tba_tipo_identificacion_conductor' }) public tipoIdentificacionConductor: number
-  @column({ columnName: 'tba_numero_identificacion_conductor' }) public numeroIdentificacionConductor: number
+  @column({ columnName: 'tba_numero_identificacion_conductor' }) public numeroIdentificacionConductor: string
   @column({ columnName: 'tba_nombres_conductor' }) public nombresConductor: string
   @column({ columnName: 'tba_mantenimiento_id' }) public mantenimientoId: number
   @column({ columnName: 'tba_detalle_actividades' }) public detalleActividades: string

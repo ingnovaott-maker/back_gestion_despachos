@@ -12,7 +12,7 @@ export default class TblPreventivo extends BaseModel {
   @column({ columnName: 'tpv_nit' }) public nit: string
   @column({ columnName: 'tpv_razon_social' }) public razonSocial: string
   @column({ columnName: 'tpv_tipo_identificacion' }) public tipoIdentificacion: number
-  @column({ columnName: 'tpv_numero_identificacion' }) public numeroIdentificacion: number
+  @column({ columnName: 'tpv_numero_identificacion' }) public numeroIdentificacion: string
   @column({ columnName: 'tpv_nombres_responsable' }) public nombresResponsable: string
   @column({ columnName: 'tpv_mantenimiento_id' }) public mantenimientoId: number
   @column({ columnName: 'tpv_detalle_actividades' }) public detalleActividades: string

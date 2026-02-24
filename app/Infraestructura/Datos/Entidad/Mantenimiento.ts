@@ -29,6 +29,7 @@ export default class TblMantenimiento extends BaseModel {
     const offset = Number.parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '0'), 10);
     const horas = Number.isNaN(offset) ? 0 : offset;
     mantenimiento.createdAt = DateTime.now().minus({ hours: horas });
+    mantenimiento.fechaDiligenciamiento = DateTime.now().minus({ hours: horas });
   }
 
 }

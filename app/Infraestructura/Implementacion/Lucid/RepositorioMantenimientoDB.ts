@@ -1253,13 +1253,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
       const { vigiladoId, placa, tipoId } = datos;
-      const fechaCreacion = this.getColombiaDateTime();
+      //const fechaCreacion = this.getColombiaDateTime();
       const mantenimientoDTO = {
         placa,
         usuarioId: nitVigilado,
         tipoId,
-        createdAt: fechaCreacion,
-        fechaDiligenciamiento: fechaCreacion,
+        //createdAt: fechaCreacion,
+        //fechaDiligenciamiento: fechaCreacion,
         procesado: false,
         mantenimientoId: null,
       };
