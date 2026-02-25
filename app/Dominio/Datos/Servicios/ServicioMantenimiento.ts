@@ -137,7 +137,7 @@ export class ServicioMantenimeinto{
 
     for (const [indice, registro] of registros.entries()) {
       try {
-        console.log('[Masivo preventivo !!] fila', indice + 1, {
+        console.log('[Masivo preventivo] fila', indice + 1, {
           fecha: registro.fecha,
           hora: registro.hora,
           placa: registro.placa,

@@ -1258,7 +1258,6 @@ export default class ControladorMantenimiento {
       let registrosExcel;
       try {
         registrosExcel = await this.leerRegistrosDesdeExcel(archivo, columnasRequeridas);
-        console.log({registrosExcel});
 
       } catch (error: any) {
         console.log({error});
@@ -1270,7 +1269,6 @@ export default class ControladorMantenimiento {
       }
 
       const { registros, errores, totalFilas } = registrosExcel;
-      console.log({registros});
 
 
       if (errores.length > 0) {
