@@ -365,7 +365,7 @@ export default class ControladorMantenimiento {
     }
 
     if (llave === 'hora') {
-      return this.normalizarHoraExcel(valor);
+      return this.normalizarHoraExcel(valor, celda.text);
     }
 
     if (valor instanceof Date) {
@@ -455,15 +455,26 @@ export default class ControladorMantenimiento {
     return null;
   }
 
-  private normalizarHoraExcel(valor: any): string | null {
+  private normalizarHoraExcel(valor: any, textoCelda?: string): string | null {
+    const textoVisible = (textoCelda || '').trim();
+    if (textoVisible !== '') {
+      const horaDesdeTextoVisible = this.parsearHoraTexto(textoVisible);
+      if (horaDesdeTextoVisible) {
+        return horaDesdeTextoVisible;
+      }
+    }
+
     if (valor instanceof Date) {
-      return DateTime.fromJSDate(valor).toFormat('HH:mm');
+      const horas = String(valor.getUTCHours()).padStart(2, '0');
+      const minutos = String(valor.getUTCMinutes()).padStart(2, '0');
+      return `${horas}:${minutos}`;
     }
 
     if (typeof valor === 'number') {
-      const totalSegundos = Math.round(valor * 24 * 60 * 60);
-      const horas = Math.floor(totalSegundos / 3600) % 24;
-      const minutos = Math.floor((totalSegundos % 3600) / 60);
+      const fraccionDia = ((valor % 1) + 1) % 1;
+      const totalMinutos = Math.round(fraccionDia * 24 * 60) % (24 * 60);
+      const horas = Math.floor(totalMinutos / 60);
+      const minutos = totalMinutos % 60;
       return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
     }
 
@@ -473,22 +484,9 @@ export default class ControladorMantenimiento {
         return null;
       }
 
-      const candidatos = [
-        DateTime.fromISO(limpio),
-        DateTime.fromFormat(limpio, 'HH:mm'),
-        DateTime.fromFormat(limpio, 'H:mm'),
-        DateTime.fromFormat(limpio, 'HH:mm:ss'),
-        DateTime.fromFormat(limpio, 'H:mm:ss'),
-        DateTime.fromFormat(limpio, 'hh:mm a'),
-        DateTime.fromFormat(limpio, 'h:mm a'),
-        DateTime.fromFormat(limpio, 'hh:mm:ss a'),
-        DateTime.fromFormat(limpio, 'h:mm:ss a'),
-      ];
-
-      for (const candidato of candidatos) {
-        if (candidato.isValid) {
-          return candidato.toFormat('HH:mm');
-        }
+      const horaDesdeTexto = this.parsearHoraTexto(limpio);
+      if (horaDesdeTexto) {
+        return horaDesdeTexto;
       }
 
       if (limpio.toLowerCase().includes('gmt') || limpio.toLowerCase().includes('utc')) {
@@ -499,6 +497,66 @@ export default class ControladorMantenimiento {
       }
 
       return limpio;
+    }
+
+    return null;
+  }
+
+  private parsearHoraTexto(texto: string): string | null {
+    const limpio = texto.trim();
+    if (limpio === '') {
+      return null;
+    }
+
+    const textoMeridiemNormalizado = limpio
+      .replace(/a\.?\s*m\.?/gi, 'AM')
+      .replace(/p\.?\s*m\.?/gi, 'PM')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+    const coincidencia = textoMeridiemNormalizado.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (coincidencia) {
+      let horas = Number(coincidencia[1]);
+      const minutos = Number(coincidencia[2]);
+      const meridiem = coincidencia[4]?.toUpperCase();
+
+      if (!Number.isInteger(horas) || !Number.isInteger(minutos) || minutos < 0 || minutos > 59) {
+        return null;
+      }
+
+      if (meridiem) {
+        if (horas < 1 || horas > 12) {
+          return null;
+        }
+        if (meridiem === 'AM') {
+          horas = horas % 12;
+        } else {
+          horas = (horas % 12) + 12;
+        }
+      } else if (horas < 0 || horas > 23) {
+        return null;
+      }
+
+      return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+    }
+
+    const candidatos = [
+      DateTime.fromISO(textoMeridiemNormalizado),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'HH:mm'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'H:mm'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'HH:mm:ss'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'H:mm:ss'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'hh:mm a'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'h:mm a'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'hh:mm:ss a'),
+      DateTime.fromFormat(textoMeridiemNormalizado, 'h:mm:ss a'),
+    ];
+
+    for (const candidato of candidatos) {
+      if (candidato.isValid) {
+        return candidato.toFormat('HH:mm');
+      }
     }
 
     return null;
