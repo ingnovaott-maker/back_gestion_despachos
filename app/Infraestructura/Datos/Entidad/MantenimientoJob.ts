@@ -1,5 +1,6 @@
-import { BaseModel, column } from '@ioc:Adonis/Lucid/Orm'
+import { BaseModel, beforeCreate, column } from '@ioc:Adonis/Lucid/Orm'
 import { DateTime } from 'luxon'
+import Env from '@ioc:Adonis/Core/Env';
 
 export type TipoMantenimientoJob = 'base' | 'preventivo' | 'correctivo' | 'alistamiento' | 'autorizacion'
 export type EstadoMantenimientoJob = 'pendiente' | 'procesando' | 'procesado' | 'fallido'
@@ -48,4 +49,12 @@ export default class TblMantenimientoJob extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true, columnName: 'tmj_actualizado' })
   public updatedAt: DateTime
+
+    @beforeCreate()
+  public static ajustarFechaCreacion(mantenimiento: TblMantenimientoJob) {
+    const offset = Number.parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '0'), 10);
+    const horas = Number.isNaN(offset) ? 0 : offset;
+    mantenimiento.createdAt = DateTime.now().minus({ hours: horas });
+  }
+
 }
