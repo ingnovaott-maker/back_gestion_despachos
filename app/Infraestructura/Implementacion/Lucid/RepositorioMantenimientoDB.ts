@@ -637,6 +637,15 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
   }
 
+  private normalizarNumeroIdentificacion(valor: any): string | null {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+
+    const texto = String(valor).trim();
+    return texto === '' ? null : texto;
+  }
+
   private async vincularCabeceras(trabajos: any[]): Promise<any[]> {
     if (!Array.isArray(trabajos) || trabajos.length === 0) {
       return [];
@@ -899,16 +908,18 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       campos.razonSocial = payload.razonSocial.trim();
     }
 
-    if (typeof payload.tipoIdentificacion === 'number' || typeof payload.tipoIdentificacion === 'string') {
-      const tipoIdentificacion = Number(payload.tipoIdentificacion);
+    const tipoIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacion', 'tipo_identificacion', 'tipoidentificacion']);
+    if (typeof tipoIdentificacionPayload === 'number' || typeof tipoIdentificacionPayload === 'string') {
+      const tipoIdentificacion = Number(tipoIdentificacionPayload);
       if (Number.isFinite(tipoIdentificacion)) {
         campos.tipoIdentificacion = tipoIdentificacion;
       }
     }
 
-    if (typeof payload.numeroIdentificacion === 'number' || typeof payload.numeroIdentificacion === 'string') {
-      const numeroIdentificacion = Number(payload.numeroIdentificacion);
-      if (Number.isFinite(numeroIdentificacion)) {
+    const numeroIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacion', 'numero_identificacion', 'numeroidentificacion']);
+    if (typeof numeroIdentificacionPayload === 'number' || typeof numeroIdentificacionPayload === 'string') {
+      const numeroIdentificacion = this.normalizarNumeroIdentificacion(numeroIdentificacionPayload);
+      if (numeroIdentificacion !== null) {
         campos.numeroIdentificacion = numeroIdentificacion;
       }
     }
@@ -969,16 +980,18 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       campos.razonSocial = payload.razonSocial.trim();
     }
 
-    if (typeof payload.tipoIdentificacion === 'number' || typeof payload.tipoIdentificacion === 'string') {
-      const tipoIdentificacion = Number(payload.tipoIdentificacion);
+    const tipoIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacion', 'tipo_identificacion', 'tipoidentificacion']);
+    if (typeof tipoIdentificacionPayload === 'number' || typeof tipoIdentificacionPayload === 'string') {
+      const tipoIdentificacion = Number(tipoIdentificacionPayload);
       if (Number.isFinite(tipoIdentificacion)) {
         campos.tipoIdentificacion = tipoIdentificacion;
       }
     }
 
-    if (typeof payload.numeroIdentificacion === 'number' || typeof payload.numeroIdentificacion === 'string') {
-      const numeroIdentificacion = Number(payload.numeroIdentificacion);
-      if (Number.isFinite(numeroIdentificacion)) {
+    const numeroIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacion', 'numero_identificacion', 'numeroidentificacion']);
+    if (typeof numeroIdentificacionPayload === 'number' || typeof numeroIdentificacionPayload === 'string') {
+      const numeroIdentificacion = this.normalizarNumeroIdentificacion(numeroIdentificacionPayload);
+      if (numeroIdentificacion !== null) {
         campos.numeroIdentificacion = numeroIdentificacion;
       }
     }
@@ -1021,30 +1034,72 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       campos.placa = payload.placa.trim().toUpperCase();
     }
 
-    const camposNumericos: Array<{ llave: keyof TblAlistamiento; origen: string }> = [
-      { llave: 'tipoIdentificacionResponsable', origen: 'tipoIdentificacionResponsable' },
-      { llave: 'numeroIdentificacionResponsable', origen: 'numeroIdentificacionResponsable' },
-      { llave: 'tipoIdentificacionConductor', origen: 'tipoIdentificacionConductor' },
-      { llave: 'numeroIdentificacionConductor', origen: 'numeroIdentificacionConductor' },
-    ];
+    const tipoIdentificacionResponsablePayload = this.obtenerValorDesdePayload(payload, [
+      'tipoIdentificacionResponsable',
+      'tipo_identificacion_responsable',
+      'tipoidentificacionresponsable',
+      'tipoIdentificacion',
+      'tipo_identificacion',
+      'tipoidentificacion',
+    ]);
 
-    for (const campo of camposNumericos) {
-      const valor = (payload as any)[campo.origen];
-      if (valor === undefined || valor === null) {
-        continue;
-      }
-      const numero = Number(valor);
+    const numeroIdentificacionResponsablePayload = this.obtenerValorDesdePayload(payload, [
+      'numeroIdentificacionResponsable',
+      'numero_identificacion_responsable',
+      'numeroidentificacionresponsable',
+      'numeroIdentificacion',
+      'numero_identificacion',
+      'numeroidentificacion',
+    ]);
+
+    const tipoIdentificacionConductorPayload = this.obtenerValorDesdePayload(payload, [
+      'tipoIdentificacionConductor',
+      'tipo_identificacion_conductor',
+      'tipoidentificacionconductor',
+    ]);
+
+    const numeroIdentificacionConductorPayload = this.obtenerValorDesdePayload(payload, [
+      'numeroIdentificacionConductor',
+      'numero_identificacion_conductor',
+      'numeroidentificacionconductor',
+    ]);
+
+    if (tipoIdentificacionResponsablePayload !== undefined && tipoIdentificacionResponsablePayload !== null) {
+      const numero = Number(tipoIdentificacionResponsablePayload);
       if (Number.isFinite(numero)) {
-        campos[campo.llave] = numero;
+        campos.tipoIdentificacionResponsable = numero;
       }
     }
 
-    if (typeof payload.nombreResponsable === 'string') {
-      campos.nombreResponsable = payload.nombreResponsable.trim();
+    if (numeroIdentificacionResponsablePayload !== undefined && numeroIdentificacionResponsablePayload !== null) {
+      const valor = String(numeroIdentificacionResponsablePayload).trim();
+      if (valor !== '') {
+        campos.numeroIdentificacionResponsable = valor;
+      }
     }
 
-    if (typeof payload.nombresConductor === 'string') {
-      campos.nombresConductor = payload.nombresConductor.trim();
+    if (tipoIdentificacionConductorPayload !== undefined && tipoIdentificacionConductorPayload !== null) {
+      const numero = Number(tipoIdentificacionConductorPayload);
+      if (Number.isFinite(numero)) {
+        campos.tipoIdentificacionConductor = numero;
+      }
+    }
+
+    if (numeroIdentificacionConductorPayload !== undefined && numeroIdentificacionConductorPayload !== null) {
+      const valor = String(numeroIdentificacionConductorPayload).trim();
+      if (valor !== '') {
+        campos.numeroIdentificacionConductor = valor;
+      }
+    }
+
+    const nombreResponsablePayload = this.obtenerValorDesdePayload(payload, ['nombreResponsable', 'nombre_responsable', 'nombreresponsable']);
+    if (typeof nombreResponsablePayload === 'string') {
+      campos.nombreResponsable = nombreResponsablePayload.trim();
+    }
+
+    const nombreConductorPayload = this.obtenerValorDesdePayload(payload, ['nombresConductor', 'nombreConductor', 'nombres_conductor', 'nombre_conductor']);
+    if (typeof nombreConductorPayload === 'string') {
+      campos.nombresConductor = nombreConductorPayload.trim();
     }
 
     if (typeof payload.detalleActividades === 'string') {
@@ -1117,33 +1172,44 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
-    const camposNumericos = [
-      'tipoIdentificacionNna',
-      'numeroIdentificacionNna',
-      'tipoDiscapacidad',
-      'tipoPoblacionEtnica',
-      'tipoIdentificacionOtorgante',
-      'numeroIdentificacionOtorgante',
-      'numeroTelefonicoOtorgante',
-      'sexoOtorgante',
-      'generoOtorgante',
-      'calidadActua',
-      'tipoIdentificacionAutorizadoViajar',
-      'numeroIdentificacionAutorizadoViajar',
-      'numeroTelefonicoAutorizadoViajar',
-      'tipoIdentificacionAutorizadoRecoger',
-      'numeroIdentificacionAutorizadoRecoger',
-      'numeroTelefonicoAutorizadoRecoger',
+    const camposNumericos: Array<{ campo: string; origenes: string[] }> = [
+      { campo: 'tipoIdentificacionNna', origenes: ['tipoIdentificacionNna', 'tipo_identificacion_nna', 'tipoidentificacionnna'] },
+      { campo: 'tipoDiscapacidad', origenes: ['tipoDiscapacidad', 'tipo_discapacidad', 'tipodiscapacidad'] },
+      { campo: 'tipoPoblacionEtnica', origenes: ['tipoPoblacionEtnica', 'tipo_poblacion_etnica', 'tipopoblacionetnica'] },
+      { campo: 'tipoIdentificacionOtorgante', origenes: ['tipoIdentificacionOtorgante', 'tipo_identificacion_otorgante', 'tipoidentificacionotorgante'] },
+      { campo: 'numeroTelefonicoOtorgante', origenes: ['numeroTelefonicoOtorgante', 'numero_telefonico_otorgante', 'numerotelefonicootorgante'] },
+      { campo: 'sexoOtorgante', origenes: ['sexoOtorgante', 'sexo_otorgante', 'sexootorgante'] },
+      { campo: 'generoOtorgante', origenes: ['generoOtorgante', 'genero_otorgante', 'generootorgante'] },
+      { campo: 'calidadActua', origenes: ['calidadActua', 'calidad_actua', 'calidadactua'] },
+      { campo: 'tipoIdentificacionAutorizadoViajar', origenes: ['tipoIdentificacionAutorizadoViajar', 'tipo_identificacion_autorizado_viajar', 'tipoidentificacionautorizadoviajar'] },
+      { campo: 'numeroTelefonicoAutorizadoViajar', origenes: ['numeroTelefonicoAutorizadoViajar', 'numero_telefonico_autorizado_viajar', 'numerotelefonicoautorizadoviajar'] },
+      { campo: 'tipoIdentificacionAutorizadoRecoger', origenes: ['tipoIdentificacionAutorizadoRecoger', 'tipo_identificacion_autorizado_recoger', 'tipoidentificacionautorizadorecoger'] },
+      { campo: 'numeroTelefonicoAutorizadoRecoger', origenes: ['numeroTelefonicoAutorizadoRecoger', 'numero_telefonico_autorizado_recoger', 'numerotelefonicoautorizadorecoger'] },
     ];
 
-    for (const campo of camposNumericos) {
-      const valor = (payload as any)[campo];
+    const camposNumeroIdentificacion: Array<{ campo: string; origenes: string[] }> = [
+      { campo: 'numeroIdentificacionNna', origenes: ['numeroIdentificacionNna', 'numero_identificacion_nna', 'numeroidentificacionnna'] },
+      { campo: 'numeroIdentificacionOtorgante', origenes: ['numeroIdentificacionOtorgante', 'numero_identificacion_otorgante', 'numeroidentificacionotorgante'] },
+      { campo: 'numeroIdentificacionAutorizadoViajar', origenes: ['numeroIdentificacionAutorizadoViajar', 'numero_identificacion_autorizado_viajar', 'numeroidentificacionautorizadoviajar'] },
+      { campo: 'numeroIdentificacionAutorizadoRecoger', origenes: ['numeroIdentificacionAutorizadoRecoger', 'numero_identificacion_autorizado_recoger', 'numeroidentificacionautorizadorecoger'] },
+    ];
+
+    for (const definicion of camposNumericos) {
+      const valor = this.obtenerValorDesdePayload(payload, definicion.origenes);
       if (valor === undefined || valor === null) {
         continue;
       }
       const numero = Number(valor);
       if (Number.isFinite(numero)) {
-        campos[campo] = numero;
+        campos[definicion.campo] = numero;
+      }
+    }
+
+    for (const definicion of camposNumeroIdentificacion) {
+      const valor = this.obtenerValorDesdePayload(payload, definicion.origenes);
+      const texto = this.normalizarNumeroIdentificacion(valor);
+      if (texto !== null) {
+        campos[definicion.campo] = texto;
       }
     }
 
@@ -1253,13 +1319,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       const { tokenAutorizacion, nitVigilado, usuarioId } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
       const { vigiladoId, placa, tipoId } = datos;
-      //const fechaCreacion = this.getColombiaDateTime();
+      const fechaCreacion = this.getColombiaDateTime();
       const mantenimientoDTO = {
         placa,
         usuarioId: nitVigilado,
         tipoId,
-        //createdAt: fechaCreacion,
-        //fechaDiligenciamiento: fechaCreacion,
+        createdAt: fechaCreacion,
+        fechaDiligenciamiento: fechaCreacion,
         procesado: false,
         mantenimientoId: null,
       };
@@ -2026,22 +2092,33 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    const tipoIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacion', 'tipo_identificacion', 'tipoidentificacion']);
+    const numeroIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacion', 'numero_identificacion', 'numeroidentificacion']);
 
     const datosPreventivo = {
-      fecha: this.normalizarFechaParaEnvio(preventivo.fecha),
-      hora: preventivo.hora,
-      nit: preventivo.nit,
-      razonSocial: preventivo.razonSocial,
-      tipoIdentificacion: preventivo.tipoIdentificacion,
-      numeroIdentificacion: preventivo.numeroIdentificacion,
-      nombresResponsable: preventivo.nombresResponsable,
+      fecha: this.normalizarFechaParaEnvio(payload.fecha ?? preventivo.fecha),
+      hora: payload.hora ?? preventivo.hora,
+      nit: payload.nit ?? preventivo.nit,
+      razonSocial: payload.razonSocial ?? preventivo.razonSocial,
+      tipoIdentificacion: tipoIdentificacionPayload !== undefined ? tipoIdentificacionPayload : preventivo.tipoIdentificacion,
+      numeroIdentificacion: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionPayload !== undefined ? numeroIdentificacionPayload : preventivo.numeroIdentificacion
+      ),
+      nombresResponsable: payload.nombresResponsable ?? preventivo.nombresResponsable,
       mantenimientoId: mantenimiento.mantenimientoId,
-      detalleActividades: preventivo.detalleActividades
+      detalleActividades: payload.detalleActividades ?? preventivo.detalleActividades
     };
 
     try {
       console.log('[Job Preventivo externo]', {
         jobId: job.id,
+        payloadReintento: payload,
+        identificacionEnviada: {
+          tipoIdentificacion: datosPreventivo.tipoIdentificacion,
+          numeroIdentificacion: datosPreventivo.numeroIdentificacion,
+        },
+        bodyEnviado: datosPreventivo,
         fechaLocal: preventivo.fecha,
         fechaNormalizada: datosPreventivo.fecha,
       });
@@ -2097,22 +2174,33 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    const tipoIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacion', 'tipo_identificacion', 'tipoidentificacion']);
+    const numeroIdentificacionPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacion', 'numero_identificacion', 'numeroidentificacion']);
 
     const datosCorrectivo = {
-      fecha: this.normalizarFechaParaEnvio(correctivo.fecha),
-      hora: correctivo.hora,
-      nit: correctivo.nit,
-      razonSocial: correctivo.razonSocial,
-      tipoIdentificacion: correctivo.tipoIdentificacion,
-      numeroIdentificacion: correctivo.numeroIdentificacion,
-      nombresResponsable: correctivo.nombresResponsable,
+      fecha: this.normalizarFechaParaEnvio(payload.fecha ?? correctivo.fecha),
+      hora: payload.hora ?? correctivo.hora,
+      nit: payload.nit ?? correctivo.nit,
+      razonSocial: payload.razonSocial ?? correctivo.razonSocial,
+      tipoIdentificacion: tipoIdentificacionPayload !== undefined ? tipoIdentificacionPayload : correctivo.tipoIdentificacion,
+      numeroIdentificacion: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionPayload !== undefined ? numeroIdentificacionPayload : correctivo.numeroIdentificacion
+      ),
+      nombresResponsable: payload.nombresResponsable ?? correctivo.nombresResponsable,
       mantenimientoId: mantenimiento.mantenimientoId,
-      detalleActividades: correctivo.detalleActividades
+      detalleActividades: payload.detalleActividades ?? correctivo.detalleActividades
     };
 
     try {
       console.log('[Job Correctivo externo]', {
         jobId: job.id,
+        payloadReintento: payload,
+        identificacionEnviada: {
+          tipoIdentificacion: datosCorrectivo.tipoIdentificacion,
+          numeroIdentificacion: datosCorrectivo.numeroIdentificacion,
+        },
+        bodyEnviado: datosCorrectivo,
         fechaLocal: correctivo.fecha,
         fechaNormalizada: datosCorrectivo.fecha,
       });
@@ -2168,6 +2256,12 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    const tipoIdentificacionResponsablePayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacionResponsable', 'tipo_identificacion_responsable', 'tipoidentificacionresponsable', 'tipoIdentificacion', 'tipo_identificacion', 'tipoidentificacion']);
+    const numeroIdentificacionResponsablePayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacionResponsable', 'numero_identificacion_responsable', 'numeroidentificacionresponsable', 'numeroIdentificacion', 'numero_identificacion', 'numeroidentificacion']);
+    const tipoIdentificacionConductorPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacionConductor', 'tipo_identificacion_conductor', 'tipoidentificacionconductor']);
+    const numeroIdentificacionConductorPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacionConductor', 'numero_identificacion_conductor', 'numeroidentificacionconductor']);
+    const nombreConductorPayload = this.obtenerValorDesdePayload(payload, ['nombresConductor', 'nombreConductor', 'nombres_conductor', 'nombre_conductor']);
 
     const actividadesRelacionadas = await TblDetallesAlistamientoActividades.query()
       .where('tda_alistamiento_id', alistamiento.id ?? 0);
@@ -2184,18 +2278,33 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const actividadesIds = this.actividadesParaApi(actividades);
 
     const datosAlistamiento = {
-      tipoIdentificacionResponsable: alistamiento.tipoIdentificacionResponsable,
-      numeroIdentificacionResponsable: alistamiento.numeroIdentificacionResponsable,
-      nombreResponsable: alistamiento.nombreResponsable,
-      tipoIdentificacionConductor: alistamiento.tipoIdentificacionConductor,
-      numeroIdentificacionConductor: alistamiento.numeroIdentificacionConductor,
-      nombresConductor: alistamiento.nombresConductor,
+      tipoIdentificacionResponsable: tipoIdentificacionResponsablePayload !== undefined ? tipoIdentificacionResponsablePayload : alistamiento.tipoIdentificacionResponsable,
+      numeroIdentificacionResponsable: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionResponsablePayload !== undefined ? numeroIdentificacionResponsablePayload : alistamiento.numeroIdentificacionResponsable
+      ),
+      nombreResponsable: payload.nombreResponsable ?? alistamiento.nombreResponsable,
+      tipoIdentificacionConductor: tipoIdentificacionConductorPayload !== undefined ? tipoIdentificacionConductorPayload : alistamiento.tipoIdentificacionConductor,
+      numeroIdentificacionConductor: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionConductorPayload !== undefined ? numeroIdentificacionConductorPayload : alistamiento.numeroIdentificacionConductor
+      ),
+      nombresConductor: nombreConductorPayload !== undefined ? nombreConductorPayload : alistamiento.nombresConductor,
       mantenimientoId: mantenimiento.mantenimientoId,
-      detalleActividades: alistamiento.detalleActividades,
+      detalleActividades: payload.detalleActividades ?? alistamiento.detalleActividades,
       actividades: actividadesIds,
     };
 
     try {
+      console.log('[Job Alistamiento externo]', {
+        jobId: job.id,
+        payloadReintento: payload,
+        identificacionEnviada: {
+          tipoIdentificacionResponsable: datosAlistamiento.tipoIdentificacionResponsable,
+          numeroIdentificacionResponsable: datosAlistamiento.numeroIdentificacionResponsable,
+          tipoIdentificacionConductor: datosAlistamiento.tipoIdentificacionConductor,
+          numeroIdentificacionConductor: datosAlistamiento.numeroIdentificacionConductor,
+        },
+        bodyEnviado: datosAlistamiento,
+      });
       const respuesta = await axios.post(
         `${urlMantenimientos}/mantenimiento/guardar-alistamiento`,
         datosAlistamiento,
@@ -2244,10 +2353,53 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(job.usuarioDocumento, job.rolId);
     const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
-    const datosAutorizacion = job.payload ?? autorizacion.toJSON();
-    datosAutorizacion.mantenimientoId = mantenimiento.mantenimientoId ?? mantenimiento.id;
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    const tipoIdentificacionNnaPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacionNna', 'tipo_identificacion_nna', 'tipoidentificacionnna']);
+    const numeroIdentificacionNnaPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacionNna', 'numero_identificacion_nna', 'numeroidentificacionnna']);
+    const tipoIdentificacionOtorgantePayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacionOtorgante', 'tipo_identificacion_otorgante', 'tipoidentificacionotorgante']);
+    const numeroIdentificacionOtorgantePayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacionOtorgante', 'numero_identificacion_otorgante', 'numeroidentificacionotorgante']);
+    const tipoIdentificacionAutorizadoViajarPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacionAutorizadoViajar', 'tipo_identificacion_autorizado_viajar', 'tipoidentificacionautorizadoviajar']);
+    const numeroIdentificacionAutorizadoViajarPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacionAutorizadoViajar', 'numero_identificacion_autorizado_viajar', 'numeroidentificacionautorizadoviajar']);
+    const tipoIdentificacionAutorizadoRecogerPayload = this.obtenerValorDesdePayload(payload, ['tipoIdentificacionAutorizadoRecoger', 'tipo_identificacion_autorizado_recoger', 'tipoidentificacionautorizadorecoger']);
+    const numeroIdentificacionAutorizadoRecogerPayload = this.obtenerValorDesdePayload(payload, ['numeroIdentificacionAutorizadoRecoger', 'numero_identificacion_autorizado_recoger', 'numeroidentificacionautorizadorecoger']);
+    const datosAutorizacion = {
+      ...autorizacion.toJSON(),
+      ...payload,
+      tipoIdentificacionNna: tipoIdentificacionNnaPayload !== undefined ? tipoIdentificacionNnaPayload : (autorizacion as any).tipoIdentificacionNna,
+      numeroIdentificacionNna: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionNnaPayload !== undefined ? numeroIdentificacionNnaPayload : (autorizacion as any).numeroIdentificacionNna
+      ),
+      tipoIdentificacionOtorgante: tipoIdentificacionOtorgantePayload !== undefined ? tipoIdentificacionOtorgantePayload : (autorizacion as any).tipoIdentificacionOtorgante,
+      numeroIdentificacionOtorgante: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionOtorgantePayload !== undefined ? numeroIdentificacionOtorgantePayload : (autorizacion as any).numeroIdentificacionOtorgante
+      ),
+      tipoIdentificacionAutorizadoViajar: tipoIdentificacionAutorizadoViajarPayload !== undefined ? tipoIdentificacionAutorizadoViajarPayload : (autorizacion as any).tipoIdentificacionAutorizadoViajar,
+      numeroIdentificacionAutorizadoViajar: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionAutorizadoViajarPayload !== undefined ? numeroIdentificacionAutorizadoViajarPayload : (autorizacion as any).numeroIdentificacionAutorizadoViajar
+      ),
+      tipoIdentificacionAutorizadoRecoger: tipoIdentificacionAutorizadoRecogerPayload !== undefined ? tipoIdentificacionAutorizadoRecogerPayload : (autorizacion as any).tipoIdentificacionAutorizadoRecoger,
+      numeroIdentificacionAutorizadoRecoger: this.normalizarNumeroIdentificacion(
+        numeroIdentificacionAutorizadoRecogerPayload !== undefined ? numeroIdentificacionAutorizadoRecogerPayload : (autorizacion as any).numeroIdentificacionAutorizadoRecoger
+      ),
+      mantenimientoId: mantenimiento.mantenimientoId ?? mantenimiento.id,
+    };
 
     try {
+      console.log('[Job Autorizacion externo]', {
+        jobId: job.id,
+        payloadReintento: payload,
+        identificacionEnviada: {
+          tipoIdentificacionNna: datosAutorizacion.tipoIdentificacionNna,
+          numeroIdentificacionNna: datosAutorizacion.numeroIdentificacionNna,
+          tipoIdentificacionOtorgante: datosAutorizacion.tipoIdentificacionOtorgante,
+          numeroIdentificacionOtorgante: datosAutorizacion.numeroIdentificacionOtorgante,
+          tipoIdentificacionAutorizadoViajar: datosAutorizacion.tipoIdentificacionAutorizadoViajar,
+          numeroIdentificacionAutorizadoViajar: datosAutorizacion.numeroIdentificacionAutorizadoViajar,
+          tipoIdentificacionAutorizadoRecoger: datosAutorizacion.tipoIdentificacionAutorizadoRecoger,
+          numeroIdentificacionAutorizadoRecoger: datosAutorizacion.numeroIdentificacionAutorizadoRecoger,
+        },
+        bodyEnviado: datosAutorizacion,
+      });
       const respuesta = await axios.post(
         `${urlMantenimientos}/mantenimiento/guardar-autorizacion`,
         datosAutorizacion,
@@ -3177,7 +3329,56 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       }
     }
 
+    if (jobTipo === 'alistamiento') {
+      const tipoResponsable = this.obtenerValorDesdePayload(resultado, [
+        'tipoIdentificacionResponsable',
+        'tipo_identificacion_responsable',
+        'tipoidentificacionresponsable',
+        'tipoIdentificacion',
+        'tipo_identificacion',
+        'tipoidentificacion',
+      ]);
+      if (tipoResponsable !== undefined && resultado.tipoIdentificacionResponsable === undefined) {
+        resultado.tipoIdentificacionResponsable = tipoResponsable;
+      }
+
+      const numeroResponsable = this.obtenerValorDesdePayload(resultado, [
+        'numeroIdentificacionResponsable',
+        'numero_identificacion_responsable',
+        'numeroidentificacionresponsable',
+        'numeroIdentificacion',
+        'numero_identificacion',
+        'numeroidentificacion',
+      ]);
+      if (numeroResponsable !== undefined && resultado.numeroIdentificacionResponsable === undefined) {
+        resultado.numeroIdentificacionResponsable = numeroResponsable;
+      }
+
+      const nombreConductor = this.obtenerValorDesdePayload(resultado, [
+        'nombresConductor',
+        'nombreConductor',
+        'nombres_conductor',
+        'nombre_conductor',
+      ]);
+      if (nombreConductor !== undefined && resultado.nombresConductor === undefined) {
+        resultado.nombresConductor = nombreConductor;
+      }
+    }
+
     return resultado;
+  }
+
+  private obtenerValorDesdePayload(payload: Record<string, any>, claves: string[]): any {
+    for (const clave of claves) {
+      if (Object.prototype.hasOwnProperty.call(payload, clave)) {
+        const valor = payload[clave];
+        if (valor !== undefined) {
+          return valor;
+        }
+      }
+    }
+
+    return undefined;
   }
 
 
@@ -3280,10 +3481,29 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     }
 
     const jobCabeceraActualizar = jobObjetivo.tipo === 'base' ? jobObjetivo : jobCabecera;
-    const jobDetalleActualizar = jobObjetivo.tipo === 'base' ? (job.tipo !== 'base' ? job : null) : jobObjetivo;
+
+    let jobDetalleActualizar: TblMantenimientoJob | null = null;
+    if (jobObjetivo.tipo === 'base') {
+      if (job.tipo !== 'base') {
+        jobDetalleActualizar = job;
+      } else if (typeof jobObjetivo.mantenimientoLocalId === 'number' && Number.isFinite(jobObjetivo.mantenimientoLocalId)) {
+        jobDetalleActualizar = await TblMantenimientoJob.query()
+          .where('tmj_mantenimiento_local_id', jobObjetivo.mantenimientoLocalId)
+          .whereNot('tmj_tipo', 'base')
+          .orderBy('tmj_id', 'desc')
+          .first();
+      }
+    } else {
+      jobDetalleActualizar = jobObjetivo;
+    }
 
     if (jobCabeceraActualizar && payloadCabecera !== undefined) {
       const payloadNormalizadoCabecera = this.normalizarPayloadDetallePorTipo(jobCabeceraActualizar.tipo, payloadCabecera);
+      console.log('[Reintento payload cabecera]', {
+        jobId: jobCabeceraActualizar.id,
+        tipo: jobCabeceraActualizar.tipo,
+        payload: payloadNormalizadoCabecera,
+      });
       jobCabeceraActualizar.payload = payloadNormalizadoCabecera ?? null;
       await this.actualizarDatosLocales(jobCabeceraActualizar, payloadNormalizadoCabecera ?? undefined);
       await jobCabeceraActualizar.save();
@@ -3291,6 +3511,11 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
     if (jobDetalleActualizar && payloadParaJob !== undefined) {
       const payloadNormalizadoDetalle = this.normalizarPayloadDetallePorTipo(jobDetalleActualizar.tipo, payloadParaJob);
+      console.log('[Reintento payload detalle]', {
+        jobId: jobDetalleActualizar.id,
+        tipo: jobDetalleActualizar.tipo,
+        payload: payloadNormalizadoDetalle,
+      });
       jobDetalleActualizar.payload = payloadNormalizadoDetalle ?? null;
       await this.actualizarDatosLocales(jobDetalleActualizar, payloadNormalizadoDetalle ?? undefined);
       await jobDetalleActualizar.save();

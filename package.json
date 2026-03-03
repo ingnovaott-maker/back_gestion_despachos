@@ -25,7 +25,6 @@
     "@types/jsonwebtoken": "^9.0.1",
     "@types/uuid": "^9.0.0",
     "adonis-preset-ts": "^2.1.0",
-    "eslint": "^8.27.0",
     "eslint-plugin-adonis": "^2.1.1",
     "pino-pretty": "^9.1.1",
     "typescript": "~4.8",
