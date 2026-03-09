@@ -8,36 +8,36 @@ import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 import { obtenerDatosAutenticacionUsuario } from './AutenticacionUsuarioHelper';
 
 export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehiculo {
-  private normalizarTexto(valor: any): string | null {
+  private normalizarTexto(valor: any): string | undefined {
     if (valor === undefined || valor === null) {
-      return null;
+      return undefined;
     }
 
     const texto = String(valor).trim();
-    return texto === '' ? null : texto;
+    return texto === '' ? undefined : texto;
   }
 
-  private normalizarNumero(valor: any): number | null {
+  private normalizarNumero(valor: any): number | undefined {
     if (valor === undefined || valor === null) {
-      return null;
+      return undefined;
     }
 
     if (typeof valor === 'number') {
-      return Number.isFinite(valor) ? valor : null;
+      return Number.isFinite(valor) ? valor : undefined;
     }
 
     const texto = String(valor).trim();
     if (texto === '') {
-      return null;
+      return undefined;
     }
 
     const numero = Number(texto);
-    return Number.isFinite(numero) ? numero : null;
+    return Number.isFinite(numero) ? numero : undefined;
   }
 
-  private normalizarFecha(valor: any): DateTime | null {
+  private normalizarFecha(valor: any): DateTime | undefined {
     if (valor === undefined || valor === null) {
-      return null;
+      return undefined;
     }
 
     if (valor instanceof DateTime) {
@@ -50,13 +50,13 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
 
     if (typeof valor === 'number') {
       const desdeMillis = DateTime.fromMillis(valor);
-      return desdeMillis.isValid ? desdeMillis : null;
+      return desdeMillis.isValid ? desdeMillis : undefined;
     }
 
     if (typeof valor === 'string') {
       const texto = valor.trim();
       if (texto === '') {
-        return null;
+        return undefined;
       }
 
       const candidatos = [
@@ -72,7 +72,7 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
       }
     }
 
-    return null;
+    return undefined;
   }
 
   private async obtenerTokenExterno(): Promise<string> {
@@ -117,7 +117,7 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
 
         // 1. Guardar localmente primero
         const novedadVehiculoDTO = {
-          idNovedad: this.normalizarNumero(data.idNovedad) ?? null,
+          idNovedad: this.normalizarNumero(data.idNovedad) ?? undefined,
           placa,
           soat: this.normalizarTexto(data.soat),
           fechaVencimientoSoat: this.normalizarFecha(data.fechaVencimientoSoat),
@@ -132,12 +132,12 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
           idProtocoloAlistamientodiario: this.normalizarTexto(data.idProtocoloAlistamientodiario),
           fechaProtocoloAlistamientodiario: this.normalizarFecha(data.fechaProtocoloAlistamientodiario),
           observaciones: this.normalizarTexto(data.observaciones),
-          clase: this.normalizarNumero(data.clase) ?? null,
-          nivelServicio: this.normalizarNumero(data.nivelServicio) ?? null,
+          clase: this.normalizarNumero(data.clase) ?? undefined,
+          nivelServicio: this.normalizarNumero(data.nivelServicio) ?? undefined,
           idPolizaContractual: this.normalizarTexto(data.idPolizaContractual),
           idPolizaExtracontractual: this.normalizarTexto(data.idPolizaExtracontractual),
-          vigenciaContractual: this.normalizarFecha(data.vigenciaContractual)?.toJSDate() ?? null,
-          vigenciaExtracontractual: this.normalizarFecha(data.vigenciaExtracontractual)?.toJSDate() ?? null,
+          vigenciaContractual: this.normalizarFecha(data.vigenciaContractual)?.toJSDate() ?? undefined,
+          vigenciaExtracontractual: this.normalizarFecha(data.vigenciaExtracontractual)?.toJSDate() ?? undefined,
           estado: true,
           procesado: false
         };

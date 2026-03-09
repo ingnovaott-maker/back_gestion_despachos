@@ -79,29 +79,6 @@ export class ServicioMantenimeinto{
     return this.repositorio.listarTrabajosProgramados(usuario, idRol, filtros, pagina, limite, orden)
   }
 
-  async listarTrabajosProgramados (
-    usuario: string,
-    idRol: number,
-    filtros?: {
-      estado?: string
-      tipo?: string
-      placa?: string
-      vin?: string
-      usuario?: string
-      proveedor?: string
-      sincronizacionEstado?: string
-      nit?: string
-      fecha?: string
-    },
-    pagina?: number,
-    limite?: number,
-    orden?: {
-      campo?: string
-      direccion?: 'asc' | 'desc'
-    }
-  ): Promise<Paginable<TrabajoProgramado>> {
-    return this.repositorio.listarTrabajosProgramados(usuario, idRol, filtros, pagina, limite, orden)
-  }
 
   async obtenerTrabajoProgramado (jobId: number, usuario: string, idRol: number): Promise<any> {
     return this.repositorio.obtenerTrabajoProgramado(jobId, usuario, idRol)

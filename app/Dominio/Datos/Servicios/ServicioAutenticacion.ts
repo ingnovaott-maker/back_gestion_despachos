@@ -59,10 +59,10 @@ export class ServicioAutenticacion {
       throw new Exception('Usuario inactivo, contacte al administrador.', 403)
     }
 
-    Logger.info(`Buscando registro de bloqueo para ${usuarioVerificado.identificacion}`)
+   /*  Logger.info(`Buscando registro de bloqueo para ${usuarioVerificado.identificacion}`)
     let registroBloqueo: RegistroBloqueo
     try {
-      registroBloqueo = await this.repositorioBloqueo.obtenerRegistroPorUsuario(usuarioVerificado.identificacion)
+      registroBloqueo = await this.repositorioBloqueo.obtenerRegistroPorUsuario(usuarioVerificado.identificacion)??
     } catch (error) {
       Logger.error(`Error consultando registro de bloqueo para ${usuarioVerificado.identificacion}: ${error instanceof Error ? error.message : 'error desconocido'}`)
       throw new Exception('No fue posible validar el estado del usuario. Intente más tarde.', 500)
@@ -77,8 +77,8 @@ export class ServicioAutenticacion {
     if (registroBloqueo.elUsuarioEstaBloqueado()) {
       Logger.warn(`Usuario ${usuarioVerificado.identificacion} bloqueado por intentos fallidos`)
       throw new Exception('Usuario bloqueado por múltiples intentos fallidos. Contacte al administrador.', 423)
-    }
-
+    } */
+/*
     Logger.info(`Comparando credenciales para ${usuarioVerificado.identificacion}`)
     let credencialesValidas: boolean
     try {
@@ -98,7 +98,7 @@ export class ServicioAutenticacion {
       Logger.info(`Reiniciando contador de intentos para ${usuarioVerificado.identificacion}`)
       registroBloqueo.resetearIntentosFallidos()
       await this.repositorioBloqueo.actualizarRegistro(registroBloqueo)
-    }
+    } */
 
     // 1. Autenticación externa obligatoria usando credenciales de entorno
     let tokenExterno: string

@@ -20,7 +20,7 @@ export default class ProcessMantenimientoQueue extends BaseCommand {
     const limite = this.limite ?? 25
     const maxReintentos = this.maxReintentos ?? 3
     const service = new MantenimientoQueueService()
-    const resultado = await service.procesarLote({ limite, maxReintentos, logger: this.logger })
+    const resultado = await service.procesarLote({ limite, maxReintentos, logger: this.logger as any })
 
     if (resultado.procesados === 0 && resultado.reprogramados === 0 && resultado.fallidos === 0) {
       this.logger.info('No hay trabajos pendientes para procesar')

@@ -133,8 +133,7 @@ export default class ControladorMantenimiento {
     if (archivo.tmpPath) {
       await workbook.xlsx.readFile(archivo.tmpPath);
     } else {
-      const buffer = await archivo.toBuffer();
-      await workbook.xlsx.load(buffer);
+      throw new Exception('No se pudo procesar el archivo Excel', 400);
     }
 
     const worksheet = workbook.worksheets[0];
@@ -143,9 +142,9 @@ export default class ControladorMantenimiento {
     }
 
     const headerRow = worksheet.getRow(1);
-    const headers = (headerRow.values || [])
-      .map((valor) => (typeof valor === 'string' ? valor.trim() : valor))
-      .map((valor) => (typeof valor === 'number' ? String(valor) : valor))
+    const headers = ((headerRow.values as any[]) || [])
+      .filter((valor): valor is string | number => typeof valor === 'string' || typeof valor === 'number')
+      .map((valor) => (typeof valor === 'string' ? valor.trim() : String(valor)))
       .filter((valor) => valor);
 
     const headersNormalizados = new Map<string, string>();
@@ -540,7 +539,8 @@ export default class ControladorMantenimiento {
   private formatearResumen(resumen: { total?: number; exitosos?: number; errores?: any[] } | null | undefined): { total: number; exitosos: number; errores: string[] } {
     const total = typeof resumen?.total === 'number' ? resumen.total : 0;
     const exitosos = typeof resumen?.exitosos === 'number' ? resumen.exitosos : 0;
-    const erroresNormalizados = Array.isArray(resumen?.errores) ? this.normalizarErroresResumen(resumen?.errores) : [];
+    const errores = resumen?.errores;
+    const erroresNormalizados = Array.isArray(errores) ? this.normalizarErroresResumen(errores) : [];
 
     return this.construirResumen(total, exitosos, erroresNormalizados);
   }

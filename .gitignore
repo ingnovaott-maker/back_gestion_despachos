@@ -5,6 +5,7 @@ coverage
 .DS_STORE
 .env
 .env-prod
+.env-qa
 tmp
 uploads/logos/*
 !uploads/logos/.gitkeep
