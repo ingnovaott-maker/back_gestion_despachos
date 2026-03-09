@@ -170,7 +170,7 @@ if(params.administrador){
           tu.usn_identificacion AS nit,
           tu.usn_nombre AS razon_social
         FROM tbl_usuarios tu
-        WHERE tu.usn_rol_id = 2
+        WHERE tu.usn_rol_id = 2 and tu.usn_estado = true
         ORDER BY tu.usn_nombre ASC
       `;
 
