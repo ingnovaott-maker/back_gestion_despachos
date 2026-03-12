@@ -3100,24 +3100,15 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     };
 
     const aplicarOrden = (builder: ModelQueryBuilderContract<typeof TblMantenimientoJob>) => {
-      const camposPermitidos = new Set([
-        'tmj_creado',
-        'tmj_actualizado',
-        'tmj_siguiente_intento',
-        'tmj_tipo',
-        'tmj_estado',
-        'tmj_reintentos',
-      ]);
-
-      if (orden?.campo && camposPermitidos.has(orden.campo)) {
-        const direccion = orden.direccion ?? 'desc';
-        builder.orderBy(orden.campo, direccion);
-        if (orden.campo !== 'tmj_creado') {
-          builder.orderBy('tmj_creado', 'desc');
-        }
-      } else {
-        builder.orderBy('tmj_creado', 'desc');
-      }
+      builder.orderByRaw(`
+        CASE LOWER(COALESCE(tmj_estado, ''))
+          WHEN 'pendiente' THEN 1
+          WHEN 'fallido' THEN 2
+          WHEN 'procesado' THEN 3
+          ELSE 4
+        END ASC
+      `);
+      builder.orderBy('tmj_creado', 'desc');
     };
 
     const baseQuery = TblMantenimientoJob.query();
