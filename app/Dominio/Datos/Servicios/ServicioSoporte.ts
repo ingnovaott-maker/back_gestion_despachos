@@ -104,7 +104,7 @@ export class ServicioSoporte {
 
     private async obtenerUsuario(documento: string): Promise<Usuario> {
         try {
-            return this.servicioUsuarios.obtenerUsuario(documento)
+            return await this.servicioUsuarios.obtenerUsuario(documento)
         } catch {
             throw new Exception(`Error al buscar el usuario con identificación: ${documento}`, 500)
         }

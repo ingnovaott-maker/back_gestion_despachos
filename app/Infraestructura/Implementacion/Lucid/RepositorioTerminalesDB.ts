@@ -240,7 +240,9 @@ export class RepositorioTerminalesDB implements RepositorioTerminales {
   // guarda todo
   async guardar(rutaInfo: any, id: number) {
     const solicitud = await TblSolicitudes.query().where('vigiladoId', id).first();
-    if (solicitud?.estado == 2 || solicitud?.estado == 7) this.servicioEstados.ActualizarEstado(solicitud?.id!, 3)
+    if (solicitud?.estado == 2 || solicitud?.estado == 7) {
+      await this.servicioEstados.ActualizarEstado(solicitud?.id!, 3)
+    }
     try {
       const ruta = {
         id: rutaInfo.id,
@@ -465,10 +467,10 @@ export class RepositorioTerminalesDB implements RepositorioTerminales {
         return rutaDb.id
       } else {
         const rutasRetorno = await TblRutas.query().where('codigoRuta', id)
-        await rutasRetorno.forEach(rutaRetorno => {
+        for (const rutaRetorno of rutasRetorno) {
           rutaRetorno.establecerRutaConId(ruta)
-          rutaRetorno.save()
-        });
+          await rutaRetorno.save()
+        }
       }
     } catch (error) {
       throw new Error(error);
@@ -782,7 +784,7 @@ export class RepositorioTerminalesDB implements RepositorioTerminales {
       }
        if (aprobado) {
          const solicitud = await TblSolicitudes.query().where('vigiladoId', vigiladoId).first();
-         this.servicioEstados.ActualizarEstado(solicitud?.id!, 1)
+         await this.servicioEstados.ActualizarEstado(solicitud?.id!, 1)
        }
       return { faltantes, aprobado }
     } catch (error) {
@@ -819,7 +821,7 @@ export class RepositorioTerminalesDB implements RepositorioTerminales {
         verificacionEditable = estados.verificacionEditable
         //solicitudId = solicitud.id
       }
-      this.servicioEstados.Log(vigiladoId, 2);
+      await this.servicioEstados.Log(vigiladoId, 2);
 
       const consulta = TblRutaEmpresas.query().preload('codigoUnicoRuta', sqlcodigoRuta => {
         sqlcodigoRuta.preload('ruta', sqlruta => {
@@ -961,7 +963,7 @@ export class RepositorioTerminalesDB implements RepositorioTerminales {
       if (!clase) {
         console.log('no existe esa clase de vehiculo');
       }
-      clase?.delete()
+      await clase?.delete()
       return { message: 'Clase eliminada exitosamente', clase }
     } catch (error) {
       return error
@@ -979,8 +981,8 @@ export class RepositorioTerminalesDB implements RepositorioTerminales {
       if (!parada || !nodoDespacho) {
         throw new error(`error al validar los registros de parada = ${parada} y nodos despacho = ${nodoDespacho}`);
       }
-      nodoDespacho?.delete()
-      parada?.delete()
+      await nodoDespacho?.delete()
+      await parada?.delete()
       return { message: 'Parada eliminada exitosamente', parada }
     } catch (error) {
       return error

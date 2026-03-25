@@ -28,16 +28,9 @@ export class RepositorioProveedorVigiladoDB implements RepositorioProveedorVigil
   }
 
   async obtenerSeleccionadas(documento: string): Promise<any[]> {
-
-    const empresas: any[] = [];
     try {
-
-
       const respuesta = await axios.get(`${this.urlDespachos}/proveedorvigilado/seleccionadas?nit=${documento}`, {});
       return respuesta.data;
-
-
-      return empresas;
     } catch (error) {
       console.log(error);
 

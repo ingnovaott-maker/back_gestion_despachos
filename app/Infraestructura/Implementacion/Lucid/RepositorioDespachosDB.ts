@@ -84,7 +84,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
             .paginate(page, numero_items);
         } */
 
-        return despachos;
+        return await despachos;
       }
       catch (error)
       {

@@ -58,7 +58,7 @@ export class ServicioEstados {
 
     await solicitud.save()
 
-    this.Log(solicitud.vigiladoId,estadoId);
+    await this.Log(solicitud.vigiladoId,estadoId);
 
    }
 

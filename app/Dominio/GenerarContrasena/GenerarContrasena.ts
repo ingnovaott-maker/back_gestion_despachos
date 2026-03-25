@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/semi */
+import { randomInt } from 'crypto'
 
 export class GeneradorContrasena{
   constructor () { }
@@ -6,7 +7,7 @@ export class GeneradorContrasena{
   public async generarClave (cadena: string, longitud: number): Promise<string> {
     let claveTemporal = '';
     for (let i = 0; i < longitud; i++){
-      let random = Math.floor(Math.random() * cadena.length)
+      const random = randomInt(cadena.length)
       claveTemporal += cadena.charAt(random);
     }
 

@@ -59,46 +59,6 @@ export class ServicioAutenticacion {
       throw new Exception('Usuario inactivo, contacte al administrador.', 403)
     }
 
-   /*  Logger.info(`Buscando registro de bloqueo para ${usuarioVerificado.identificacion}`)
-    let registroBloqueo: RegistroBloqueo
-    try {
-      registroBloqueo = await this.repositorioBloqueo.obtenerRegistroPorUsuario(usuarioVerificado.identificacion)??
-    } catch (error) {
-      Logger.error(`Error consultando registro de bloqueo para ${usuarioVerificado.identificacion}: ${error instanceof Error ? error.message : 'error desconocido'}`)
-      throw new Exception('No fue posible validar el estado del usuario. Intente más tarde.', 500)
-    }
-    if (!registroBloqueo) {
-      Logger.info(`No existía registro de bloqueo para ${usuarioVerificado.identificacion}, creando uno nuevo`)
-      registroBloqueo = await this.crearRegistroDeBloqueo(usuarioVerificado.identificacion)
-    }
-
-    Logger.info(`Estado de bloqueo usuario ${usuarioVerificado.identificacion}: bloqueado=${registroBloqueo.elUsuarioEstaBloqueado()} intentos=${registroBloqueo.intentos}`)
-
-    if (registroBloqueo.elUsuarioEstaBloqueado()) {
-      Logger.warn(`Usuario ${usuarioVerificado.identificacion} bloqueado por intentos fallidos`)
-      throw new Exception('Usuario bloqueado por múltiples intentos fallidos. Contacte al administrador.', 423)
-    } */
-/*
-    Logger.info(`Comparando credenciales para ${usuarioVerificado.identificacion}`)
-    let credencialesValidas: boolean
-    try {
-      credencialesValidas = await this.encriptador.comparar(contrasena, usuarioVerificado.clave)
-      Logger.info(`Resultado validación credenciales para ${usuarioVerificado.identificacion}: ${credencialesValidas}`)
-    } catch (error) {
-      Logger.error(`Fallo al comparar credenciales para ${usuarioVerificado.identificacion}: ${error instanceof Error ? error.message : 'error desconocido'}`)
-      throw error
-    }
-    if (!credencialesValidas) {
-      Logger.warn(`Credenciales inválidas para ${usuarioVerificado.identificacion}. Intentos previos: ${registroBloqueo.intentos}`)
-      await this.manejarIntentoFallido(registroBloqueo)
-      throw new Exception('Credenciales incorrectas, por favor intente recuperar contraseña con su correo', 400)
-    }
-
-    if (registroBloqueo.intentos > 0) {
-      Logger.info(`Reiniciando contador de intentos para ${usuarioVerificado.identificacion}`)
-      registroBloqueo.resetearIntentosFallidos()
-      await this.repositorioBloqueo.actualizarRegistro(registroBloqueo)
-    } */
 
     // 1. Autenticación externa obligatoria usando credenciales de entorno
     let tokenExterno: string
