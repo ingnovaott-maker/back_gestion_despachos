@@ -49,7 +49,7 @@ export default class ControladorDashboard {
     const usuario = payload.documento
     const idRol = payload.idRol
 
-    console.log({payload});
+    console.log({nit, placa, usuario, idRol});
     try {
 
 
@@ -64,7 +64,7 @@ export default class ControladorDashboard {
     } catch (error) {
       console.error('Error al obtener placas del dashboard:', error)
       return response.status(500).json({
-        payload: payload,
+        payload: {payload, nit},
         mensaje: 'Error al obtener las placas del dashboard',
         error: error.message
       })

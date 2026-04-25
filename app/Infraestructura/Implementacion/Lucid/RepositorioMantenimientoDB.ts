@@ -1274,6 +1274,9 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
       const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
+      console.log({nitVigilado,tipoId,tokenExterno,tokenAutorizacion});
+
+
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
 
@@ -1301,7 +1304,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         throw exception;
       }
     } catch (error: any) {
-      console.log(error);
+      //console.log(error);
       if (error instanceof Exception) {
         throw error;
       }
