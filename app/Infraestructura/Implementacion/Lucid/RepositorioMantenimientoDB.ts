@@ -1279,6 +1279,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
+        console.log(`${urlMantenimientos}/mantenimiento/listar-placas?vigiladoId=${nitVigilado}&tipoId=${tipoId}`);
+        console.log({headers: {
+              'Authorization': `Bearer ${tokenExterno}`,
+              'token': tokenAutorizacion,
+              'Content-Type': 'application/json'
+            }});
+
 
         const respuestaArchivosPrograma = await axios.get(
           `${urlMantenimientos}/mantenimiento/listar-placas?vigiladoId=${nitVigilado}&tipoId=${tipoId}`,
