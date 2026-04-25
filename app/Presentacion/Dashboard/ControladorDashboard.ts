@@ -43,12 +43,15 @@ export default class ControladorDashboard {
    *   - nit (opcional): Filtra por NIT de empresa
    */
   public async obtenerPlacas({ request, response }: HttpContextContract) {
-    try {
-      const { placa, nit } = request.qs()
+    const { placa, nit } = request.qs()
 
-      const payload = await request.obtenerPayloadJWT()
-      const usuario = payload.documento
-      const idRol = payload.idRol
+    const payload = await request.obtenerPayloadJWT()
+    const usuario = payload.documento
+    const idRol = payload.idRol
+
+    console.log({payload});
+    try {
+
 
       const placas = await this.obtenerResumenDashboard.obtenerPlacas(
         usuario,
@@ -61,6 +64,7 @@ export default class ControladorDashboard {
     } catch (error) {
       console.error('Error al obtener placas del dashboard:', error)
       return response.status(500).json({
+        payload: payload,
         mensaje: 'Error al obtener las placas del dashboard',
         error: error.message
       })
