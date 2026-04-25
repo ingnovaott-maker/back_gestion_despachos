@@ -48,8 +48,6 @@ export default class ControladorDashboard {
     const payload = await request.obtenerPayloadJWT()
     const usuario = payload.documento
     const idRol = payload.idRol
-
-    console.log({nit, placa, usuario, idRol});
     try {
 
 

@@ -1274,17 +1274,8 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
       const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
 
-      console.log({nitVigilado,tipoId,tokenExterno,tokenAutorizacion});
-
-
       try {
         const urlMantenimientos = Env.get("URL_MATENIMIENTOS");
-        console.log(`${urlMantenimientos}/mantenimiento/listar-placas?vigiladoId=${nitVigilado}&tipoId=${tipoId}`);
-        console.log({headers: {
-              'Authorization': `Bearer ${tokenExterno}`,
-              'token': tokenAutorizacion,
-              'Content-Type': 'application/json'
-            }});
 
 
         const respuestaArchivosPrograma = await axios.get(
@@ -1300,7 +1291,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
 
         return respuestaArchivosPrograma.data;
       } catch (errorExterno: any) {
-        /* console.error("Error al enviar datos al API externo de mantenimiento:", errorExterno);
+        console.error("Error al enviar datos al API externo de mantenimiento:", errorExterno);
         const exception = new Exception(
           errorExterno.response?.data?.mensaje || errorExterno.response?.data?.message || "Error al comunicarse con el servicio externo de mantenimiento",
           errorExterno.response?.status || 500
@@ -1308,16 +1299,16 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
         if (errorExterno.response?.data) {
           (exception as any).responseData = errorExterno.response.data;
         }
-        throw exception; */
+        throw exception;
       }
     } catch (error: any) {
       //console.log(error);
-      /* if (error instanceof Exception) {
+      if (error instanceof Exception) {
         throw error;
       }
       throw new Error(
         "No se encontraron registros de placas para este usuario"
-      ); */
+      );
     }
   }
 
