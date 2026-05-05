@@ -2929,7 +2929,13 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     const paginaNormalizada = pagina && pagina > 0 ? pagina : 1;
     const limiteNormalizado = limite && limite > 0 ? limite : 10;
 
-    const { nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
+    let nitVigilado: string | null = null;
+    if (idRol === 1 && filtros?.nit) {
+      nitVigilado = filtros.nit;
+    }else{
+      nitVigilado = (await this.obtenerDatosAutenticacion(usuario, idRol)).nitVigilado;
+    }
+
     const estadoFiltrado = typeof filtros?.estado === 'string' && filtros.estado.trim() !== ''
       ? filtros.estado.trim().toLowerCase()
       : null;
