@@ -60,7 +60,7 @@ export class ServicioAutenticacion {
     }
 
 
-let registroDeBloqueo =
+/* let registroDeBloqueo =
       await this.repositorioBloqueo.obtenerRegistroPorUsuario(
         usuarioVerificado.identificacion
       );
@@ -78,7 +78,7 @@ let registroDeBloqueo =
     if (!usuarioVerificado) {
       this.manejarIntentoFallido(registroDeBloqueo);
       throw new Exception(
-        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo registrado en SINST",
+        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo",
         400
       );
     }
@@ -88,10 +88,10 @@ let registroDeBloqueo =
     ) {
       this.manejarIntentoFallido(registroDeBloqueo);
       throw new Exception(
-        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo registrado en SINST",
+        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo",
         400
       );
-    }
+    } */
 
 
 
