@@ -60,6 +60,43 @@ export class ServicioAutenticacion {
     }
 
 
+let registroDeBloqueo =
+      await this.repositorioBloqueo.obtenerRegistroPorUsuario(
+        usuarioVerificado.identificacion
+      );
+    if (!registroDeBloqueo) {
+      registroDeBloqueo = await this.crearRegistroDeBloqueo(
+        usuarioVerificado.identificacion
+      );
+    }
+    if (registroDeBloqueo.elUsuarioEstaBloqueado()) {
+      throw new Exception(
+        "El usuario se encuentra bloqueado por exceder el número de intentos de inicio de sesión, intente recuperar contraseña",
+        423
+      );
+    }
+    if (!usuarioVerificado) {
+      this.manejarIntentoFallido(registroDeBloqueo);
+      throw new Exception(
+        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo registrado en SINST",
+        400
+      );
+    }
+
+    if (
+      !(await this.encriptador.comparar(contrasena, usuarioVerificado.clave))
+    ) {
+      this.manejarIntentoFallido(registroDeBloqueo);
+      throw new Exception(
+        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo registrado en SINST",
+        400
+      );
+    }
+
+
+
+
+
     // 1. Autenticación externa obligatoria usando credenciales de entorno
     let tokenExterno: string
     try {
