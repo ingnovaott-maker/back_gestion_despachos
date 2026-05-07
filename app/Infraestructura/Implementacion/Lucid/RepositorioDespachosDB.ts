@@ -50,9 +50,7 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
 
       return respuesta.data;
     } catch (errorExterno: any) {
-      console.log(errorExterno);
-
-      const statusCode = errorExterno.response?.status || 500;
+      const statusCode = errorExterno.response?.status || 400;
       const mensajeError = errorExterno.response?.data?.mensaje ||
                           errorExterno.response?.data?.message ||
                           'Error al listar los despachos';
