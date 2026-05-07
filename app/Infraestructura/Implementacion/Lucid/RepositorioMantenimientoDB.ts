@@ -3030,7 +3030,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
     };
 
     const baseQuery = TblMantenimientoJob.query();
-    await this.restringirTrabajosPorUsuario(baseQuery, nitVigilado, idRol);
+    await this.restringirTrabajosPorUsuario(baseQuery, nitVigilado ?? usuario, idRol);
     aplicarFiltros(baseQuery);
 
     const clavesOrden: string[] = [];
