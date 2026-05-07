@@ -13,6 +13,7 @@ export class RespuestaInicioSesion {
       apellido?: string,
       telefono?: string,
       correo?: string,
+      nit?: string | null,
     },
     public readonly token: string,
     public readonly tokenExterno: string,

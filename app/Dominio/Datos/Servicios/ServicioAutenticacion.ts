@@ -129,7 +129,8 @@ export class ServicioAutenticacion {
         usuario: usuarioVerificado.identificacion,
         nombre: usuarioVerificado.nombre,
         telefono: usuarioVerificado.telefono,
-        correo: usuarioVerificado.correo
+        correo: usuarioVerificado.correo,
+        nit: usuarioVerificado.administrador?? null
       },
       token,
       tokenExterno,
