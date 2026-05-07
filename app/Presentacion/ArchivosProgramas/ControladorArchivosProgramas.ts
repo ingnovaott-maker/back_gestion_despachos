@@ -44,13 +44,13 @@ private servicio: ServicioArchivosProgramas
     try {
       const respuesta = await this.servicio.listar(vigiladoId,tipoId);
       if(respuesta.length == 0){
-        return response.status(404).send({ mensaje: 'No se encontraron archivos'})
+        return response.status(404).send({ mensaje: 'Sin documentos cargados'})
       }
      return respuesta
 
     } catch (error) {
       console.error('Error en la solicitud:', error.message);
-      return response.status(500).send({ mensaje: 'Error en el servidor'})
+      return response.status(500).send({ mensaje: error.message ? `Error en el servidor: ${error.message}` : 'Error en el servidor' })
     }
 
   }
