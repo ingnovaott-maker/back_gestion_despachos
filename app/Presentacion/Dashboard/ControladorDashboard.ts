@@ -63,7 +63,7 @@ export default class ControladorDashboard {
       console.error('Error al obtener placas del dashboard:', error)
       return response.status(500).json({
         payload: {payload, nit},
-        mensaje: error.message ? `Error al obtener las placas del dashboard: ${error.message}` : 'Error al obtener las placas del dashboard',
+        mensaje: error.message ? `${error.message}` : 'Error al obtener las placas del dashboard',
         error: error.message
       })
     }
