@@ -39,14 +39,14 @@ export class ServicioAutenticacion {
     const usuario = await this.verificarUsuario(identificacion)
     if (usuario instanceof Usuario) {
       if (!(await this.encriptador.comparar(clave, usuario.clave))) {
-        throw new Exception('Credenciales incorrectas, por favor intente recuperar contraseña con su correo', 400)
+        throw new Exception('Credenciales incorrectas', 400)
       }
       usuario.clave = nuevaClave
       usuario.claveTemporal = false;
       this.servicioUsuario.actualizarUsuario(usuario.id, usuario)
       return;
     }
-    throw new Exception('Credenciales incorrectas, por favor intente recuperar contraseña con su correo', 400)
+    throw new Exception('Credenciales incorrectas', 400)
   }
 
   public async iniciarSesion(usuario: string, contrasena: string): Promise<RespuestaInicioSesion> {
@@ -78,7 +78,7 @@ export class ServicioAutenticacion {
     if (!usuarioVerificado) {
       this.manejarIntentoFallido(registroDeBloqueo);
       throw new Exception(
-        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo",
+        "Credenciales incorrectas",
         400
       );
     }
@@ -88,7 +88,7 @@ export class ServicioAutenticacion {
     ) {
       this.manejarIntentoFallido(registroDeBloqueo);
       throw new Exception(
-        "Credenciales incorrectas, por favor intente recuperar contraseña con su correo",
+        "Credenciales incorrectas",
         400
       );
     } */
@@ -142,7 +142,7 @@ export class ServicioAutenticacion {
   public async verificarUsuario(usuario: string): Promise<Usuario> {
     const usuarioDB = await this.servicioUsuario.obtenerUsuarioPorUsuario(usuario)
     if (!usuarioDB) {
-      throw new Exception('Credenciales incorrectas, por favor intente recuperar contraseña con su correo', 400)
+      throw new Exception('Credenciales incorrectas', 400)
     }
     return usuarioDB
   }
