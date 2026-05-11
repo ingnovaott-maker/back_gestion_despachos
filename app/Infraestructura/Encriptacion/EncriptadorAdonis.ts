@@ -17,7 +17,7 @@ export class EncriptadorAdonis implements Encriptador {
 
     } catch (error) {
       Logger.error(`Error verificando hash: ${error instanceof Error ? error.message : 'error desconocido'}`)
-      throw new Exception('Credenciales incorrectas', 400)
+      throw new Exception('Credenciales no corresponden', 400)
     }
 
 
