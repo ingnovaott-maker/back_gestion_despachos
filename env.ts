@@ -36,6 +36,7 @@ export default Env.rules({
   EXTERNAL_APP_LOGIN_URL: Env.schema.string(),
   EXTERNAL_APP_USER: Env.schema.string(),
   EXTERNAL_APP_PASSWORD: Env.schema.string(),
+  URL_INTEGRACION: Env.schema.string.optional(),
 
   TIMEZONE_OFFSET_HOURS: Env.schema.number.optional()
   ,

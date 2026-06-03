@@ -1,3 +1,5 @@
+import axios from 'axios'
+import Env from '@ioc:Adonis/Core/Env'
 import Database from '@ioc:Adonis/Lucid/Database'
 import { DashboardResumenDto, DashboardLogMantenimientoDto } from 'App/Dominio/Dto/DashboardDto'
 import { RepositorioMantenimiento } from '../Repositorios/RepositorioMantenimiento'
@@ -120,7 +122,107 @@ export class ObtenerResumenDashboard {
       )
     })
 
-    return resumen
+
+    const resumenIntegracion: DashboardResumenDto[] = await this.obtenerResumenIntegracion(nitVigilado || nit, fechaInicio, fechaFin)
+    const nombresPorNit = new Map(resumen.map(item => [item.nitEmpresa, item.nombreEmpresa]))
+console.log(resumenIntegracion);
+
+    const resumenMap = new Map<string, DashboardResumenDto>()
+    resumen.forEach(item => {
+      const key = `${item.nitEmpresa}|${item.fecha ?? ''}`
+      resumenMap.set(key, item)
+    })
+
+    resumenIntegracion.forEach(item => {
+      const key = `${item.nitEmpresa}|${item.fecha ?? ''}`
+      const existente = resumenMap.get(key)
+
+      if (existente) {
+        existente.alistamiento += item.alistamiento
+        existente.mantenimientoPreventivo += item.mantenimientoPreventivo
+        existente.mantenimientoCorrectivo += item.mantenimientoCorrectivo
+      } else {
+        resumenMap.set(
+          key,
+          new DashboardResumenDto(
+            item.nitEmpresa,
+            item.nombreEmpresa || nombresPorNit.get(item.nitEmpresa) || '',
+            item.mantenimientoCorrectivo,
+            item.mantenimientoPreventivo,
+            item.alistamiento,
+            0,
+            0,
+            item.fecha
+          )
+        )
+      }
+    })
+
+    const resultadoFinal = Array.from(resumenMap.values()).sort((a, b) => {
+      const fechaParse = (fecha?: string) => {
+        if (!fecha) return 0
+        const partes = fecha.split('/')
+        return new Date(`${partes[2]}-${partes[1]}-${partes[0]}`).getTime()
+      }
+
+      const fechaA = fechaParse(a.fecha)
+      const fechaB = fechaParse(b.fecha)
+      if (fechaA !== fechaB) {
+        return fechaB - fechaA
+      }
+
+      return a.nombreEmpresa.localeCompare(b.nombreEmpresa)
+    })
+
+    return resultadoFinal
+  }
+
+  private async obtenerResumenIntegracion(nit?: string, fechaInicio?: string, fechaFin?: string): Promise<DashboardResumenDto[]> {
+    if (!nit) {
+      return []
+    }
+
+    const baseUrl = Env.get('URL_INTEGRACION', '')
+    if (!baseUrl) {
+      return []
+    }
+
+    const params = new URLSearchParams()
+    params.append('nit', nit)
+    if (fechaInicio) {
+      params.append('fechaInicio', fechaInicio)
+    }
+    if (fechaFin) {
+      params.append('fechaFin', fechaFin)
+    }
+
+    const url = `${baseUrl.replace(/\/+$/, '')}/listarcantidades?${params.toString()}`
+
+    try {
+      const respuesta = await axios.get(url)
+      const data = respuesta.data?.array_data
+
+      if (!Array.isArray(data)) {
+        return []
+      }
+
+      return data.map((item: any) => {
+        return new DashboardResumenDto(
+          item.nitvigilado || item.nitEmpresa || nit,
+          '',
+          parseInt(item.mantenimientoCorrectivo || item.mantenimientocorrectivo || '0') || 0,
+          parseInt(item.mantenimientoPreventivo || item.mantenimientopreventivo || '0') || 0,
+          parseInt(item.alistamiento || '0') || 0,
+          0,
+          0,
+          item.fecha
+        )
+      })
+    } catch (error) {
+      const mensajeError = error instanceof Error ? error.message : JSON.stringify(error)
+      console.error('Error al obtener resumen de integración:', mensajeError)
+      return []
+    }
   }
 
   /**
