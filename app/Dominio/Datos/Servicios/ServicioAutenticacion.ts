@@ -16,6 +16,7 @@ import { ServicioAutenticacionExterna } from 'App/Dominio/Datos/Servicios/Servic
 import Logger from '@ioc:Adonis/Core/Logger'
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno'
 import { RepositorioUsuarioModuloDB } from 'App/Infraestructura/Implementacion/Lucid/RepositorioUsuarioModuloDB'
+import Env from '@ioc:Adonis/Core/Env';
 
 export class ServicioAutenticacion {
   private servicioUsuario: ServicioUsuarios
@@ -59,8 +60,11 @@ export class ServicioAutenticacion {
       throw new Exception('Usuario inactivo, contacte al administrador.', 403)
     }
 
+    if(Env.get('BLOQUEO_CREDENCIALES', false)) {
+      console.log("Entro");
 
-/* let registroDeBloqueo =
+
+let registroDeBloqueo =
       await this.repositorioBloqueo.obtenerRegistroPorUsuario(
         usuarioVerificado.identificacion
       );
@@ -91,8 +95,9 @@ export class ServicioAutenticacion {
         "Credenciales no corresponden",
         400
       );
-    } */
+    }
 
+    }
 
 
 
