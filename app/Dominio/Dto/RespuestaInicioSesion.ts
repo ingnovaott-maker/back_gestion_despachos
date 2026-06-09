@@ -17,6 +17,7 @@ export class RespuestaInicioSesion {
     },
     public readonly token: string,
     public readonly tokenExterno: string,
+    public readonly tokenParametrica: string,
     public readonly rol: RolDto,
     public readonly claveTemporal: boolean,
     public readonly modulos: Modulo[]

@@ -127,6 +127,8 @@ let registroDeBloqueo =
     const repositorioModulos = new RepositorioUsuarioModuloDB()
     const modulos = await repositorioModulos.obtenerModulosDeUsuario(usuarioVerificado.id)
 
+    const tokenParametrica = Env.get('TOKEN_PARAMETRICA', '')
+
     Logger.info(`Inicio de sesión completado para ${usuarioVerificado.identificacion}`)
     return new RespuestaInicioSesion(
       {
@@ -139,6 +141,7 @@ let registroDeBloqueo =
       },
       token,
       tokenExterno,
+      tokenParametrica,
       new RolDto(rolUsuario),
       usuarioVerificado.claveTemporal,
       modulos)
