@@ -21,6 +21,7 @@ import Server from '@ioc:Adonis/Core/Server'
 |
 */
 Server.middleware.register([
+  () => import('App/Middlewares/HeadersSeguridad'),
   () => import('@ioc:Adonis/Core/BodyParser'),
 ])
 
