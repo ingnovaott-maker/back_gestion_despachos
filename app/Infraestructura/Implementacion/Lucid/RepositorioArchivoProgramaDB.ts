@@ -9,6 +9,7 @@ import TblUsuarios from 'App/Infraestructura/Datos/Entidad/Usuario';
 import { TokenExterno } from 'App/Dominio/Utilidades/TokenExterno';
 import Env from '@ioc:Adonis/Core/Env';
 import axios from 'axios';
+import { DateTime } from 'luxon';
 
 export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma {
   private async obtenerTokenExterno(): Promise<string> {
@@ -60,10 +61,9 @@ export class RepositorioArchivoProgramaDB implements RepositorioArchivoPrograma 
       await TblArchivoPrograma.query().where('tap_usuario_id', usuarioId!).where('tap_tipo_id', tipoId).update({ estado: false });
 
       // Obtener la fecha ajustada por TIMEZONE_OFFSET_HOURS y convertir a DateTime (Luxon)
-      const { DateTime } = require('luxon');
-      const offsetHours = parseInt(process.env.TIMEZONE_OFFSET_HOURS || '5');
-      const now = new Date();
-      const fechaCreacion = DateTime.fromJSDate(new Date(now.getTime() - (offsetHours * 60 * 60 * 1000)));
+      const offsetEnv = Env.get('TIMEZONE_OFFSET_HOURS', '5');
+      const offsetHours = Number.parseInt(offsetEnv, 10);
+      const fechaCreacion = DateTime.now().minus({ hours: Number.isNaN(offsetHours) ? 0 : offsetHours });
 
       const data = {
         nombreOriginal,

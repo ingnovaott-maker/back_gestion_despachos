@@ -1194,6 +1194,7 @@ export class RepositorioMantenimientoDB implements RepositorioMantenimiento {
       usuarioId = usuarioDb.id!;
     }
 
+
     // Validar que el token no esté vacío
     if (!tokenAutorizacion || tokenAutorizacion.trim() === '') {
       throw new Exception("Token de autorización no encontrado. Por favor, contacte al administrador.", 400);

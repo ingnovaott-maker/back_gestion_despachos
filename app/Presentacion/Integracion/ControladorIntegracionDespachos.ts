@@ -43,6 +43,20 @@ export default class ControladorIntegracionDespachos {
     }
   }
 
+  public async consultarPorNit ({ request, response }: HttpContextContract) {
+    try {
+      const { documento, idRol } = await obtenerCredencialesJwt(request)
+      const { nit } = request.qs()
+      const resultado = await this.servicio.consultarPorNit(nit, documento, idRol)
+
+      return response.status(200).send(resultado)
+    } catch (error) {
+      const { documento } = await request.obtenerPayloadJWT?.() || {}
+      await guardarLogError(error, documento ?? '', 'integracionConsultarDespachoNit')
+      return manejarErrorIntegracion(error, response)
+    }
+  }
+
   public async consultarPorPlaca ({ request, params, response }: HttpContextContract) {
     try {
       const { documento, idRol } = await obtenerCredencialesJwt(request)

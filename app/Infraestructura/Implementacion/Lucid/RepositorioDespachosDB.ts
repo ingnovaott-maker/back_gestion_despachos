@@ -164,28 +164,45 @@ export class RepositorioDesppachosDB implements RepositorioDespachos {
   }
 
   async BuscarPorPlacaVehiculo(placa: string, usuario: string, idRol: number, fechaSalida?: string): Promise<any> {
+    console.log('BuscarPorPlacaVehiculo', placa, usuario, idRol, fechaSalida);
+
     const tokenExterno = await this.obtenerTokenExterno();
+    console.log('tokenExterno', tokenExterno);
+
+    const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
+    const URL_DESPACHOS = Env.get('URL_DESPACHOS');
+    let url = `${URL_DESPACHOS}/despachos/placa/${placa}`;
+
+    if (fechaSalida && fechaSalida.trim() !== "") {
+      url += `?fechaSalida=${fechaSalida}`;
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${tokenExterno}`,
+      'token': tokenAutorizacion,
+      'documento': nitVigilado,
+      'Content-Type': 'application/json'
+    };
+
+    console.log('Consultando despacho por placa - request al API externo:', {
+      metodo: 'GET',
+      url,
+      headers,
+    });
 
     try {
-      const { tokenAutorizacion, nitVigilado } = await this.obtenerDatosAutenticacion(usuario, idRol);
-      const URL_DESPACHOS = Env.get('URL_DESPACHOS');
-      let url = `${URL_DESPACHOS}/despachos/placa/${placa}`;
-
-      if (fechaSalida && fechaSalida.trim() !== "") {
-        url += `?fechaSalida=${fechaSalida}`;
-      }
-
-      const respuesta = await axios.get(url, {
-        headers: {
-          'Authorization': `Bearer ${tokenExterno}`,
-          'token': tokenAutorizacion,
-          'documento': nitVigilado,
-          'Content-Type': 'application/json'
-        }
-      });
+      const respuesta = await axios.get(url, { headers });
 
       return respuesta.data;
     } catch (errorExterno: any) {
+      console.error('Error al consultar despacho por placa:', {
+        url,
+        mensaje: errorExterno?.message,
+        codigo: errorExterno?.code,
+        status: errorExterno?.response?.status,
+        data: errorExterno?.response?.data,
+      });
+
       const statusCode = errorExterno.response?.status || 500;
       const mensajeError = errorExterno.response?.data?.mensaje ||
                           errorExterno.response?.data?.message ||

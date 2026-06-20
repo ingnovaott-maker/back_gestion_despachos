@@ -7,6 +7,7 @@ const maestrasPath = '../../../app/Presentacion/Integracion/ControladorPuenteMae
 
 Route.group(() => {
   Route.post('despachos', despachosPath + '.registrar')
+  Route.get('despachos', despachosPath + '.consultarPorNit')
   Route.get('despachos/solicitud/:id', despachosPath + '.obtenerSolicitud')
   Route.get('despachos/placa/:placa', despachosPath + '.consultarPorPlaca')
   Route.get('despachos/consulta/:id', despachosPath + '.consultarPorId')
