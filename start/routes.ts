@@ -1,5 +1,6 @@
 import Route from '@ioc:Adonis/Core/Route'
 import './mantenimiento_queue_worker'
+import './despachos_queue_worker'
 import { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import { extname } from 'path'
 import Drive from '@ioc:Adonis/Core/Drive'

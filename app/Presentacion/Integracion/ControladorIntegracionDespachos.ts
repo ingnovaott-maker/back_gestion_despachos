@@ -18,7 +18,8 @@ export default class ControladorIntegracionDespachos {
       }
 
       const resultado = await this.servicio.registrar(payload, documento, idRol)
-      return response.status(200).send(resultado)
+      const status = resultado?.estado === 'procesado' ? 200 : 202
+      return response.status(status).send(resultado)
     } catch (error) {
       const { documento } = await request.obtenerPayloadJWT?.() || {}
       await guardarLogError(error, documento ?? '', 'integracionRegistrarDespacho')
@@ -27,6 +28,31 @@ export default class ControladorIntegracionDespachos {
         return manejarErrorIntegracion(error, response)
       }
 
+      return manejarErrorIntegracion(error, response)
+    }
+  }
+
+  public async listarSolicitudes ({ request, response }: HttpContextContract) {
+    try {
+      await obtenerCredencialesJwt(request)
+      const { estado } = request.qs()
+      const solicitudes = await this.servicio.listarSolicitudes(estado)
+      return response.status(200).send(solicitudes.map((solicitud) => solicitud.serialize()))
+    } catch (error) {
+      const { documento } = await request.obtenerPayloadJWT?.() || {}
+      await guardarLogError(error, documento ?? '', 'integracionListarSolicitudesDespacho')
+      return manejarErrorIntegracion(error, response)
+    }
+  }
+
+  public async reintentarSolicitud ({ request, params, response }: HttpContextContract) {
+    try {
+      await obtenerCredencialesJwt(request)
+      const solicitud = await this.servicio.reintentarSolicitud(Number(params.id))
+      return response.status(200).send(solicitud.serialize())
+    } catch (error) {
+      const { documento } = await request.obtenerPayloadJWT?.() || {}
+      await guardarLogError(error, documento ?? '', 'integracionReintentarSolicitudDespacho')
       return manejarErrorIntegracion(error, response)
     }
   }
