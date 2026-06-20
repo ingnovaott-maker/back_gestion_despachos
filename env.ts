@@ -40,5 +40,8 @@ export default Env.rules({
   TIMEZONE_OFFSET_HOURS: Env.schema.number.optional()
   ,
   // Nombre de archivo del logo (ubicado en uploads/logos o public/logos según tu estrategia)
-  LOGO: Env.schema.string.optional()
+  LOGO: Env.schema.string.optional(),
+
+  // Activa el bloqueo de credenciales por intentos fallidos
+  BLOQUEO_CREDENCIALES: Env.schema.boolean.optional()
 })

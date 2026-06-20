@@ -13,9 +13,11 @@ export class RespuestaInicioSesion {
       apellido?: string,
       telefono?: string,
       correo?: string,
+      nit?: string,
     },
     public readonly token: string,
     public readonly tokenExterno: string,
+    public readonly tokenParametrica: string,
     public readonly rol: RolDto,
     public readonly claveTemporal: boolean,
     public readonly modulos: Modulo[]
