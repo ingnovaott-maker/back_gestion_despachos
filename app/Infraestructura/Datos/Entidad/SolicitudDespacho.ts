@@ -1,6 +1,8 @@
 import { BaseModel, column } from '@ioc:Adonis/Lucid/Orm'
 import { DateTime } from 'luxon'
 
+export type EstadoSolicitudDespacho = 'pendiente' | 'procesando' | 'procesado' | 'fallido'
+
 export default class TblSolicitudDespacho extends BaseModel {
   public static table = 'tbl_despachos_solicitudes'
 
@@ -33,6 +35,18 @@ export default class TblSolicitudDespacho extends BaseModel {
 
   @column({ columnName: 'des_sol_error_externo' })
   public errorExterno: string | null
+
+  @column({ columnName: 'des_sol_estado' })
+  public estado: EstadoSolicitudDespacho
+
+  @column({ columnName: 'des_sol_reintentos' })
+  public reintentos: number
+
+  @column({ columnName: 'des_sol_rol_id' })
+  public rolId: number | null
+
+  @column.dateTime({ columnName: 'des_sol_siguiente_intento' })
+  public siguienteIntento: DateTime
 
   @column.dateTime({ columnName: 'des_sol_fecha_creacion', autoCreate: true })
   public fechaCreacion: DateTime

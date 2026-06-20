@@ -1,9 +1,14 @@
+import { DateTime } from 'luxon'
 import Env from '@ioc:Adonis/Core/Env'
+import { Exception } from '@adonisjs/core/build/standalone'
 import { ClienteApiSupertransporte } from 'App/Dominio/Utilidades/ClienteApiSupertransporte'
-import TblSolicitudDespacho from 'App/Infraestructura/Datos/Entidad/SolicitudDespacho'
+import TblSolicitudDespacho, { EstadoSolicitudDespacho } from 'App/Infraestructura/Datos/Entidad/SolicitudDespacho'
 import { obtenerDatosAutenticacionUsuario } from 'App/Infraestructura/Implementacion/Lucid/AutenticacionUsuarioHelper'
+import DespachosQueueService from 'App/Servicios/DespachosQueueService'
 
 export class ServicioSolicitudDespacho {
+  private colaDespachos = new DespachosQueueService()
+
   public async registrar (
     payload: Record<string, unknown>,
     identificacion: string,
@@ -15,50 +20,80 @@ export class ServicioSolicitudDespacho {
       payload,
       nitVigilado,
       usuarioId: identificacion,
+      rolId: idRol,
       fuenteDato: 'WEB',
       procesado: false,
       idDespachoExterno: null,
       respuestaExterna: null,
       errorExterno: null,
+      estado: 'pendiente',
+      reintentos: 0,
+      siguienteIntento: DateTime.now(),
     })
 
-    const urlDespachos = Env.get('URL_DESPACHOS')
-    const url = `${urlDespachos}/despachosempresa`
-
+    // Opción A: se intenta enviar al externo en el mismo request. Si falla,
+    // la solicitud queda 'pendiente' y el worker la reintenta en segundo plano.
     try {
-      const respuestaExterna = await ClienteApiSupertransporte.postTransaccional(
-        url,
-        payload,
-        identificacion,
-        idRol
-      )
+      await this.colaDespachos.enviarSolicitud(solicitud)
+      solicitud.estado = 'procesado'
+      solicitud.siguienteIntento = DateTime.now()
+      await solicitud.save()
 
-      const idDespachoExterno = ClienteApiSupertransporte.extraerIdDespachoExterno(respuestaExterna)
-
+      return {
+        solicitudId: solicitud.id,
+        estado: solicitud.estado,
+        idDespachoExterno: solicitud.idDespachoExterno,
+        ...(solicitud.respuestaExterna as Record<string, unknown> | null ?? {}),
+      }
+    } catch (error: any) {
+      const mensajeError = JSON.stringify(error?.responseData || error?.message || 'Error desconocido')
       solicitud.merge({
-        procesado: true,
-        idDespachoExterno,
-        respuestaExterna,
-        errorExterno: null,
+        estado: 'pendiente',
+        errorExterno: mensajeError,
+        siguienteIntento: DateTime.now().plus({ minutes: 5 }),
       })
       await solicitud.save()
 
       return {
         solicitudId: solicitud.id,
-        idDespachoExterno,
-        ...respuestaExterna,
+        estado: solicitud.estado,
+        idDespachoExterno: null,
+        mensaje: 'La solicitud fue recibida y se reintentará automáticamente.',
+        errorExterno: mensajeError,
       }
-    } catch (error: any) {
-      solicitud.merge({
-        errorExterno: JSON.stringify(error?.responseData || error?.message || 'Error desconocido'),
-      })
-      await solicitud.save()
-      throw error
     }
   }
 
   public async obtenerSolicitud (id: number): Promise<TblSolicitudDespacho> {
     return TblSolicitudDespacho.findOrFail(id)
+  }
+
+  public async listarSolicitudes (estado?: EstadoSolicitudDespacho): Promise<TblSolicitudDespacho[]> {
+    const consulta = TblSolicitudDespacho.query().orderBy('des_sol_id', 'desc')
+    if (estado) {
+      consulta.where('des_sol_estado', estado)
+    }
+    return consulta
+  }
+
+  public async reintentarSolicitud (id: number): Promise<TblSolicitudDespacho> {
+    const solicitud = await TblSolicitudDespacho.find(id)
+    if (!solicitud) {
+      throw new Exception('Solicitud de despacho no encontrada', 404)
+    }
+    if (solicitud.procesado) {
+      throw new Exception('La solicitud ya fue procesada exitosamente', 400)
+    }
+
+    solicitud.merge({
+      estado: 'pendiente',
+      reintentos: 0,
+      errorExterno: null,
+      siguienteIntento: DateTime.now(),
+    })
+    await solicitud.save()
+
+    return solicitud
   }
 
   public async consultarPorPlaca (

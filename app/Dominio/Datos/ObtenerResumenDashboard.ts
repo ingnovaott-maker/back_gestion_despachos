@@ -64,6 +64,18 @@ export class ObtenerResumenDashboard {
         ${fechaInicio && fechaFin ? `AND n.nov_fecha_novedad BETWEEN '${fechaInicio}' AND '${fechaFin}'` : ''}
         ${fechaInicio && !fechaFin ? `AND n.nov_fecha_novedad >= '${fechaInicio}'` : ''}
         ${!fechaInicio && fechaFin ? `AND n.nov_fecha_novedad <= '${fechaFin}'` : ''}
+
+        UNION
+
+        -- Obtener todas las fechas únicas de despachos
+        SELECT
+          ds.des_sol_nit_vigilado as usn_identificacion,
+          ds.des_sol_fecha_creacion::DATE as fecha
+        FROM tbl_despachos_solicitudes ds
+        WHERE 1=1
+        ${fechaInicio && fechaFin ? `AND ds.des_sol_fecha_creacion::DATE BETWEEN '${fechaInicio}'::DATE AND '${fechaFin}'::DATE` : ''}
+        ${fechaInicio && !fechaFin ? `AND ds.des_sol_fecha_creacion::DATE >= '${fechaInicio}'::DATE` : ''}
+        ${!fechaInicio && fechaFin ? `AND ds.des_sol_fecha_creacion::DATE <= '${fechaFin}'::DATE` : ''}
       )
       SELECT
         u.usn_identificacion as nitEmpresa,
@@ -97,7 +109,12 @@ export class ObtenerResumenDashboard {
           (SELECT COUNT(*) FROM tbl_novedades n
            WHERE n.nov_usuario_id = u.usn_identificacion
            AND n.nov_fecha_novedad = fpu.fecha), 0
-        ) as novedades
+        ) as novedades,
+        COALESCE(
+          (SELECT COUNT(*) FROM tbl_despachos_solicitudes ds
+           WHERE ds.des_sol_nit_vigilado = u.usn_identificacion
+           AND ds.des_sol_fecha_creacion::DATE = fpu.fecha), 0
+        ) as despachos
       FROM fechas_por_usuario fpu
       INNER JOIN tbl_usuarios u ON u.usn_identificacion = fpu.usn_identificacion
       WHERE 1=1 ${whereClauseNit} ${fechaFilter}
@@ -116,6 +133,7 @@ export class ObtenerResumenDashboard {
         parseInt(fila.alistamiento) || 0,
         parseInt(fila.autorizaciones) || 0,
         parseInt(fila.novedades) || 0,
+        parseInt(fila.despachos) || 0,
         fila.fecha
       )
     })

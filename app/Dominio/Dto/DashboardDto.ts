@@ -6,6 +6,7 @@ export class DashboardResumenDto {
   public alistamiento: number
   public autorizaciones: number
   public novedades: number
+  public despachos: number
   public fecha?: string
 
   constructor(
@@ -16,6 +17,7 @@ export class DashboardResumenDto {
     alistamiento: number = 0,
     autorizaciones: number = 0,
     novedades: number = 0,
+    despachos: number = 0,
     fecha?: string
   ) {
     this.nitEmpresa = nitEmpresa
@@ -25,6 +27,7 @@ export class DashboardResumenDto {
     this.alistamiento = alistamiento
     this.autorizaciones = autorizaciones
     this.novedades = novedades
+    this.despachos = despachos
     this.fecha = fecha
   }
 }
