@@ -12,8 +12,8 @@ export interface HeadersTransaccionales {
 }
 
 export class ClienteApiSupertransporte {
-  private static readonly TIMEOUT_INTEGRADORA_MS = 10000
-  private static readonly TIMEOUT_TRANSACCIONAL_MS = 30000
+  private static readonly TIMEOUT_INTEGRADORA_MS = 100000
+  private static readonly TIMEOUT_TRANSACCIONAL_MS = 100000
 
   public static async obtenerHeadersTransaccionales (
     identificacion: string,
@@ -106,9 +106,10 @@ export class ClienteApiSupertransporte {
   ): Promise<any> {
     const baseUrl = Env.get('URL_INTEGRADORA')
     const url = `${baseUrl}/api-integradora/resumen`
+    const timeout = Number(Env.get('TIMEOUT_INTEGRADORA_MS', this.TIMEOUT_INTEGRADORA_MS))
 
     return this.postTransaccional(url, body, identificacion, idRol, {
-      timeout: this.TIMEOUT_INTEGRADORA_MS,
+      timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : this.TIMEOUT_INTEGRADORA_MS,
     })
   }
 
