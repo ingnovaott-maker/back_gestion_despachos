@@ -22,10 +22,12 @@ export class ServicioSolicitudLlegada {
       throw new Exception('El campo numeroPasajero es obligatorio', 400)
     }
 
-    const numeroPasajero = Number(payload.numeroPasajero)
-    if (!Number.isFinite(numeroPasajero) || numeroPasajero < 1) {
-      throw new Exception('El campo numeroPasajero debe ser un número mayor a 0', 400)
-    }
+    const numeroPasajero = 0
+
+   /*  const numeroPasajero = Number(payload.numeroPasajero)
+    if (!Number.isFinite(numeroPasajero) || numeroPasajero < 0) {
+      throw new Exception('El campo numeroPasajero debe ser un número mayor o igual a 0', 400)
+    } */
 
     const idDespacho = payload.idDespacho !== undefined && payload.idDespacho !== null
       ? Number(payload.idDespacho)
