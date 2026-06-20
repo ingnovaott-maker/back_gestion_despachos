@@ -1,5 +1,6 @@
-import { BaseModel, column} from '@ioc:Adonis/Lucid/Orm';
+import { BaseModel, column, beforeCreate } from '@ioc:Adonis/Lucid/Orm';
 import { DateTime } from 'luxon';
+import Env from '@ioc:Adonis/Core/Env';
 
 export default class TblCorrectivo extends BaseModel {
 
@@ -21,4 +22,10 @@ export default class TblCorrectivo extends BaseModel {
   @column.dateTime({ autoCreate: true , columnName: 'tcv_creado'}) public createdAt: DateTime
   @column.dateTime({ autoCreate: true, autoUpdate: true, columnName: 'tcv_actualizado' }) public updatedAt: DateTime
 
+  @beforeCreate()
+  public static ajustarFechaCreacion(correctivo: TblCorrectivo) {
+    const offset = Number.parseInt(Env.get('TIMEZONE_OFFSET_HOURS', '0'), 10);
+    const horas = Number.isNaN(offset) ? 0 : offset;
+    correctivo.createdAt = DateTime.now().minus({ hours: horas });
+  }
 }

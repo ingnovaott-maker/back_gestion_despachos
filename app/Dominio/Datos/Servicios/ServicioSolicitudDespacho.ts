@@ -79,6 +79,23 @@ export class ServicioSolicitudDespacho {
     return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, params)
   }
 
+  public async consultarPorNit (
+    nit: string,
+    identificacion: string,
+    idRol: number
+  ): Promise<any> {
+    const urlDespachos = Env.get('URL_DESPACHOS')
+    const url = `${urlDespachos}/despachos`
+
+    const params: Record<string, unknown> = {}
+    const nitLimpio = typeof nit === 'string' ? nit.trim() : ''
+    if (nitLimpio !== '') {
+      params.nit = nitLimpio
+    }
+
+    return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, params)
+  }
+
   public async consultarPorId (
     idDespacho: number,
     identificacion: string,
