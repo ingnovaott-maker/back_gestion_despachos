@@ -1,11 +1,12 @@
 import Route from '@ioc:Adonis/Core/Route'
 import './mantenimiento_queue_worker'
+import './despachos_queue_worker'
 import { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import { extname } from 'path'
 import Drive from '@ioc:Adonis/Core/Drive'
 
 Route.get('/', async ({ response }: HttpContextContract) => {
-  response.status(200).send('¡Bienvenido a gesmovil API!')
+  response.status(200).send('¡Bienvenido a gesmovil API 1!')
 })
 
 Route.get('/recursos/*', async ({request, response}:HttpContextContract) => {
