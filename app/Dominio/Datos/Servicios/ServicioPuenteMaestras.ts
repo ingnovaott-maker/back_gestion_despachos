@@ -37,7 +37,7 @@ export class ServicioPuenteMaestras {
     identificacion: string,
     idRol: number
   ): Promise<any> {
-    const url = `${Env.get('URL_DESPACHOS')}/rutas-activas-empresa`
+    const url = `${Env.get('URL_TERMINALES')}/maestras/rutas-activas-empresa`
     return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, { nit })
   }
 
