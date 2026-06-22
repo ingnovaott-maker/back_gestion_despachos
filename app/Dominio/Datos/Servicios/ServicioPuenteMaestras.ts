@@ -37,7 +37,7 @@ export class ServicioPuenteMaestras {
     identificacion: string,
     idRol: number
   ): Promise<any> {
-    const url = `${Env.get('URL_MATENIMIENTOS')}/maestras/rutas-activas-empresa`
+    const url = `${Env.get('URL_DESPACHOS')}/rutas-activas-empresa`
     return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, { nit })
   }
 
@@ -49,7 +49,7 @@ export class ServicioPuenteMaestras {
     idRol: number
   ): Promise<any> {
     const placaLimpia = placa.replace(/[\s-]/g, '').toUpperCase()
-    const url = `${Env.get('URL_MATENIMIENTOS')}/maestras/autorizaciones`
+    const url = `${Env.get('URL_DESPACHOS')}/autorizaciones`
 
     return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, {
       nit,
