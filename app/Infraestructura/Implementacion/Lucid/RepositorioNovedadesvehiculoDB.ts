@@ -141,7 +141,7 @@ export class RepositorioNovedadesvehiculoDB implements RepositorioNovedadesvehic
           estado: true,
           procesado: false
         };
-        const novedadVehiculo = await TblNovedadesvehiculo.create(novedadVehiculoDTO);
+        const novedadVehiculo = await TblNovedadesvehiculo.create(novedadVehiculoDTO as any);
 
         // 2. Enviar datos al API externo
         try {

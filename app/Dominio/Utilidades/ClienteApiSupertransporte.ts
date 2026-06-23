@@ -9,6 +9,7 @@ export interface HeadersTransaccionales {
   token: string
   documento: string
   'Content-Type': string
+  [clave: string]: string
 }
 
 export class ClienteApiSupertransporte {
@@ -74,7 +75,11 @@ export class ClienteApiSupertransporte {
     config?: Pick<AxiosRequestConfig, 'timeout'>
   ): Promise<any> {
     const headers = await this.obtenerHeadersTransaccionales(identificacion, idRol)
-
+console.log({
+  url,
+  body,
+  headers,
+})
     try {
       const respuesta = await axios.post(url, body, {
         headers,

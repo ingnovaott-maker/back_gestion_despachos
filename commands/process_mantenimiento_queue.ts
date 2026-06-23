@@ -1,4 +1,5 @@
 import { BaseCommand, flags } from '@adonisjs/core/build/standalone'
+import type { LoggerContract } from '@ioc:Adonis/Core/Logger'
 import MantenimientoQueueService from 'App/Servicios/MantenimientoQueueService'
 
 export default class ProcessMantenimientoQueue extends BaseCommand {
@@ -20,7 +21,11 @@ export default class ProcessMantenimientoQueue extends BaseCommand {
     const limite = this.limite ?? 25
     const maxReintentos = this.maxReintentos ?? 3
     const service = new MantenimientoQueueService()
-    const resultado = await service.procesarLote({ limite, maxReintentos, logger: this.logger })
+    const resultado = await service.procesarLote({
+      limite,
+      maxReintentos,
+      logger: this.logger as unknown as LoggerContract,
+    })
 
     if (resultado.procesados === 0 && resultado.reprogramados === 0 && resultado.fallidos === 0) {
       this.logger.info('No hay trabajos pendientes para procesar')

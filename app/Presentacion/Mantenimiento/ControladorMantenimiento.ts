@@ -133,7 +133,7 @@ export default class ControladorMantenimiento {
     if (archivo.tmpPath) {
       await workbook.xlsx.readFile(archivo.tmpPath);
     } else {
-      const buffer = await archivo.toBuffer();
+      const buffer = await (archivo as any).toBuffer();
       await workbook.xlsx.load(buffer);
     }
 
@@ -143,7 +143,7 @@ export default class ControladorMantenimiento {
     }
 
     const headerRow = worksheet.getRow(1);
-    const headers = (headerRow.values || [])
+    const headers = ((headerRow.values as unknown as any[]) || [])
       .map((valor) => (typeof valor === 'string' ? valor.trim() : valor))
       .map((valor) => (typeof valor === 'number' ? String(valor) : valor))
       .filter((valor) => valor);
@@ -540,7 +540,8 @@ export default class ControladorMantenimiento {
   private formatearResumen(resumen: { total?: number; exitosos?: number; errores?: any[] } | null | undefined): { total: number; exitosos: number; errores: string[] } {
     const total = typeof resumen?.total === 'number' ? resumen.total : 0;
     const exitosos = typeof resumen?.exitosos === 'number' ? resumen.exitosos : 0;
-    const erroresNormalizados = Array.isArray(resumen?.errores) ? this.normalizarErroresResumen(resumen?.errores) : [];
+    const errores = resumen?.errores;
+    const erroresNormalizados = Array.isArray(errores) ? this.normalizarErroresResumen(errores) : [];
 
     return this.construirResumen(total, exitosos, erroresNormalizados);
   }

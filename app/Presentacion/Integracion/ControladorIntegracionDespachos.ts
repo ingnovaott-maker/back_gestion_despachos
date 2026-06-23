@@ -18,8 +18,7 @@ export default class ControladorIntegracionDespachos {
       }
 
       const resultado = await this.servicio.registrar(payload, documento, idRol)
-      const status = resultado?.estado === 'procesado' ? 200 : 202
-      return response.status(status).send(resultado)
+      return response.status(200).send(resultado)
     } catch (error) {
       const { documento } = await request.obtenerPayloadJWT?.() || {}
       await guardarLogError(error, documento ?? '', 'integracionRegistrarDespacho')

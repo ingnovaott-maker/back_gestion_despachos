@@ -44,7 +44,7 @@ export class ServicioUsuario {
                     continue;
                 }
 
-                (usuario as Record<string, unknown>)[clave] = valor as unknown;
+                (usuario as unknown as Record<string, unknown>)[clave] = valor as unknown;
             }
 
             return usuario
