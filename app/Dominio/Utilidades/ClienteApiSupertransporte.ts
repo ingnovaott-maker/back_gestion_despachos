@@ -99,6 +99,26 @@ export class ClienteApiSupertransporte {
     }
   }
 
+  public static obtenerHeadersTokenEstatico (): Record<string, string> {
+    return {
+      Authorization: `Bearer ${Env.get('TOKEN')}`,
+      'Content-Type': 'application/json',
+    }
+  }
+
+  public static async getConTokenEstatico (url: string, params?: Record<string, unknown>): Promise<any> {
+    try {
+      const respuesta = await axios.get(url, {
+        headers: this.obtenerHeadersTokenEstatico(),
+        params,
+        timeout: this.TIMEOUT_TRANSACCIONAL_MS,
+      })
+      return respuesta.data
+    } catch (error) {
+      throw this.toException(error)
+    }
+  }
+
   public static async postIntegradora (
     body: Record<string, unknown>,
     identificacion: string,

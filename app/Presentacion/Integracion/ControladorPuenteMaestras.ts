@@ -84,7 +84,7 @@ export default class ControladorPuenteMaestras {
 
   public async autorizaciones ({ request, response }: HttpContextContract) {
     try {
-      const { documento, idRol } = await obtenerCredencialesJwt(request)
+      await obtenerCredencialesJwt(request)
       const { nit, placa, fecha } = request.all()
 
       if (!nit || !placa || !fecha) {
@@ -94,9 +94,7 @@ export default class ControladorPuenteMaestras {
       const resultado = await this.servicio.listarAutorizaciones(
         nit,
         placa,
-        fecha,
-        documento,
-        idRol
+        fecha
       )
 
       return response.status(200).send(resultado)
