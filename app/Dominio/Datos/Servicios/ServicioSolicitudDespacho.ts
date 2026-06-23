@@ -9,11 +9,32 @@ import DespachosQueueService from 'App/Servicios/DespachosQueueService'
 export class ServicioSolicitudDespacho {
   private colaDespachos = new DespachosQueueService()
 
+  /**
+   * El API externo exige que ciertos campos de obj_vehiculo viajen como string.
+   * Se normaliza el payload antes de persistir/enviar.
+   */
+  private normalizarPayload (payload: Record<string, unknown>): Record<string, unknown> {
+    const objVehiculo = payload?.obj_vehiculo
+    if (objVehiculo && typeof objVehiculo === 'object') {
+      const vehiculo = objVehiculo as Record<string, unknown>
+      const camposTexto = ['idMatenimientoPreventivo', 'idProtocoloAlistamientodiario']
+
+      for (const campo of camposTexto) {
+        if (vehiculo[campo] !== undefined && vehiculo[campo] !== null) {
+          vehiculo[campo] = String(vehiculo[campo])
+        }
+      }
+    }
+
+    return payload
+  }
+
   public async registrar (
     payload: Record<string, unknown>,
     identificacion: string,
     idRol: number
   ): Promise<any> {
+    payload = this.normalizarPayload(payload)
     const { nitVigilado } = await obtenerDatosAutenticacionUsuario(identificacion, idRol)
 
     const solicitud = await TblSolicitudDespacho.create({
