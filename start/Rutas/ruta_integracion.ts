@@ -15,6 +15,7 @@ Route.group(() => {
   Route.get('despachos/consulta/:id', despachosPath + '.consultarPorId')
 
   Route.post('llegadas', llegadasPath + '.registrar')
+  Route.get('llegadas', llegadasPath + '.listar')
   Route.get('llegadas/solicitud/:id', llegadasPath + '.obtenerSolicitud')
 
   Route.post('integradora/resumen', integradoraPath + '.resumen')

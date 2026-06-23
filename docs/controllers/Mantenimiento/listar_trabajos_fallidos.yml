@@ -99,4 +99,4 @@
               properties:
                 mensaje:
                   type: string
-}
+

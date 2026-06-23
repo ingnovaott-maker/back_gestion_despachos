@@ -110,4 +110,22 @@ export class ServicioSolicitudLlegada {
   public async obtenerSolicitud (id: number): Promise<TblSolicitudLlegada> {
     return TblSolicitudLlegada.findOrFail(id)
   }
+
+  public async consultarLlegadas (
+    identificacion: string,
+    idRol: number,
+    nit?: string,
+    page?: number,
+    numeroItems?: number
+  ): Promise<any> {
+    const url = `${Env.get('URL_DESPACHOS')}/llegada`
+
+    const params: Record<string, unknown> = {}
+    const nitLimpio = typeof nit === 'string' ? nit.trim() : ''
+    if (nitLimpio !== '') params.nit = nitLimpio
+    if (page !== undefined) params.page = page
+    if (numeroItems !== undefined) params.numero_items = numeroItems
+
+    return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, params)
+  }
 }
