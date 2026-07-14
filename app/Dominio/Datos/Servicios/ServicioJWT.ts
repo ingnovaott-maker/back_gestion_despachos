@@ -2,18 +2,18 @@ import Env from '@ioc:Adonis/Core/Env'
 import { PayloadJWT } from 'App/Dominio/Dto/PayloadJWT'
 import JwtExpiradoException from 'App/Exceptions/JwtExpiradoException'
 import JwtInvalidoException from 'App/Exceptions/JwtInvalidoException'
-import jwt from 'jsonwebtoken'
+import jwt, { SignOptions } from 'jsonwebtoken'
 
 export class ServicioAutenticacionJWT {
-  public static readonly tokenExpiraEn = '24h'
+  public static readonly tokenExpiraEnSegundos = 60 * 60 * 24
   public static readonly erroresJwt = {
     EXPIRADO: 'TokenExpiredError',
     INVALIDO: 'JsonWebTokenError',
   }
 
   public static generarToken (payload: PayloadJWT):string {
-    const opciones = {
-      expiresIn: this.tokenExpiraEn,
+    const opciones: SignOptions = {
+      expiresIn: this.tokenExpiraEnSegundos,
     }
     return jwt.sign(payload, Env.get('JWT_SECRET_KEY'), opciones)
   }
