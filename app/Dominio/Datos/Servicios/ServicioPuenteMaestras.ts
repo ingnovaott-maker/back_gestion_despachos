@@ -44,14 +44,15 @@ export class ServicioPuenteMaestras {
   public async listarAutorizaciones (
     nit: string,
     placa: string,
-    fecha: string,
-    identificacion: string,
-    idRol: number
+    fecha: string
   ): Promise<any> {
     const placaLimpia = placa.replace(/[\s-]/g, '').toUpperCase()
-    const url = `${Env.get('URL_MATENIMIENTOS')}/maestras/autorizaciones`
+    // El endpoint de autorizaciones se autentica con el TOKEN estático (Bearer)
+    // y vive en /api/v1 del backend de rutas (no en el /api/v2 transaccional).
+    const baseRutas = String(Env.get('URL_MATENIMIENTOS', '')).replace(/\/api\/v\d+\/?$/, '/api/v1')
+    const url = `${baseRutas}/maestras/autorizaciones`
 
-    return ClienteApiSupertransporte.getTransaccional(url, identificacion, idRol, {
+    return ClienteApiSupertransporte.getConTokenEstatico(url, {
       nit,
       placa: placaLimpia,
       fecha,

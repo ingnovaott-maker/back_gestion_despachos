@@ -61,6 +61,7 @@ export default class DespachosQueueService {
     const urlDespachos = Env.get('URL_DESPACHOS')
     const url = `${urlDespachos}/despachosempresa`
 
+
     const respuestaExterna = await ClienteApiSupertransporte.postTransaccional(
       url,
       solicitud.payload,
@@ -112,6 +113,13 @@ export default class DespachosQueueService {
         opciones.logger.info(`Solicitud de despacho ${solicitud.id} procesada correctamente`)
       } catch (error: any) {
         const mensaje = this.extraerMensajeError(error)
+        const statusCode = Number(error?.status) || 500
+        opciones.logger.error(
+          'Error API externo POST /despachosempresa (solicitud %s): status=%s respuesta=%s',
+          solicitud.id,
+          statusCode,
+          JSON.stringify(error?.responseData ?? error?.message ?? 'sin detalle')
+        )
         solicitud.errorExterno = mensaje
         solicitud.reintentos = (solicitud.reintentos ?? 0) + 1
 

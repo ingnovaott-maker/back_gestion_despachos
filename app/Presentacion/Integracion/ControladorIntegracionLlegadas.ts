@@ -37,4 +37,25 @@ export default class ControladorIntegracionLlegadas {
       return manejarErrorIntegracion(error, response)
     }
   }
+
+  public async listar ({ request, response }: HttpContextContract) {
+    try {
+      const { documento, idRol } = await obtenerCredencialesJwt(request)
+      const { nit, page, numero_items: numeroItems } = request.qs()
+
+      const resultado = await this.servicio.consultarLlegadas(
+        documento,
+        idRol,
+        nit,
+        page !== undefined ? Number(page) : undefined,
+        numeroItems !== undefined ? Number(numeroItems) : undefined
+      )
+
+      return response.status(200).send(resultado)
+    } catch (error) {
+      const { documento } = await request.obtenerPayloadJWT?.() || {}
+      await guardarLogError(error, documento ?? '', 'integracionConsultarLlegadas')
+      return manejarErrorIntegracion(error, response)
+    }
+  }
 }

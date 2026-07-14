@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import Env from '@ioc:Adonis/Core/Env'
+import Logger from '@ioc:Adonis/Core/Logger'
 import { Exception } from '@adonisjs/core/build/standalone'
 import { ClienteApiSupertransporte } from 'App/Dominio/Utilidades/ClienteApiSupertransporte'
 import TblSolicitudDespacho, { EstadoSolicitudDespacho } from 'App/Infraestructura/Datos/Entidad/SolicitudDespacho'
@@ -9,11 +10,86 @@ import DespachosQueueService from 'App/Servicios/DespachosQueueService'
 export class ServicioSolicitudDespacho {
   private colaDespachos = new DespachosQueueService()
 
+  /**
+   * El API externo exige varios campos como string. Se normalizan antes de persistir/enviar.
+   */
+  private convertirCamposAString (objeto: Record<string, unknown>, campos: string[]): void {
+    for (const campo of campos) {
+      if (objeto[campo] !== undefined && objeto[campo] !== null) {
+        objeto[campo] = String(objeto[campo])
+      }
+    }
+  }
+
+  private normalizarPayload (payload: Record<string, unknown>): Record<string, unknown> {
+    const objDespacho = payload?.obj_despacho
+    if (objDespacho && typeof objDespacho === 'object') {
+      this.convertirCamposAString(objDespacho as Record<string, unknown>, [
+        'nitEmpresaTransporte',
+        'razonSocial',
+        'fechaSalida',
+        'horaSalida',
+        'observaciones',
+        'nitProveedor',
+      ])
+    }
+
+    const objVehiculo = payload?.obj_vehiculo
+    if (objVehiculo && typeof objVehiculo === 'object') {
+      const vehiculo = objVehiculo as Record<string, unknown>
+      this.convertirCamposAString(vehiculo, [
+        'placa',
+        'soat',
+        'fechaVencimientoSoat',
+        'revisionTecnicoMecanica',
+        'fechaRevisionTecnicoMecanica',
+        'tarjetaOperacion',
+        'fechaVencimientoTarjetaOperacion',
+        'idMatenimientoPreventivo',
+        'idProtocoloAlistamientodiario',
+      ])
+
+      if (vehiculo.placa) {
+        vehiculo.placa = ClienteApiSupertransporte.limpiarPlaca(String(vehiculo.placa))
+      }
+    }
+
+    const objConductores = payload?.obj_conductores
+    if (objConductores && typeof objConductores === 'object') {
+      this.convertirCamposAString(objConductores as Record<string, unknown>, [
+        'numeroIdentificacion',
+        'primerNombrePrincipal',
+        'segundoNombrePrincipal',
+        'primerApellidoPrincipal',
+        'segundoApellidoPrincipal',
+        'idExamenMedico',
+        'idPruebaAlcoholimetria',
+        'licenciaConduccion',
+        'numeroIdentificacionSecundario',
+        'primerNombreSecundario',
+        'idExamenMedicoSecundario',
+        'idPruebaAlcoholimetriaSecundario',
+        'licenciaConduccionSecundario',
+      ])
+    }
+
+    const objRutas = payload?.obj_rutas
+    if (objRutas && typeof objRutas === 'object') {
+      this.convertirCamposAString(objRutas as Record<string, unknown>, [
+        'centroPobladoOrigen',
+        'centroPobladoDestino',
+      ])
+    }
+
+    return payload
+  }
+
   public async registrar (
     payload: Record<string, unknown>,
     identificacion: string,
     idRol: number
   ): Promise<any> {
+    payload = this.normalizarPayload(payload)
     const { nitVigilado } = await obtenerDatosAutenticacionUsuario(identificacion, idRol)
 
     const solicitud = await TblSolicitudDespacho.create({
@@ -31,8 +107,7 @@ export class ServicioSolicitudDespacho {
       siguienteIntento: DateTime.now(),
     })
 
-    // Opción A: se intenta enviar al externo en el mismo request. Si falla,
-    // la solicitud queda 'pendiente' y el worker la reintenta en segundo plano.
+    // Intenta enviar al externo en el mismo request y devuelve su respuesta tal cual.
     try {
       await this.colaDespachos.enviarSolicitud(solicitud)
       solicitud.estado = 'procesado'
@@ -41,26 +116,31 @@ export class ServicioSolicitudDespacho {
 
       return {
         solicitudId: solicitud.id,
-        estado: solicitud.estado,
-        idDespachoExterno: solicitud.idDespachoExterno,
         ...(solicitud.respuestaExterna as Record<string, unknown> | null ?? {}),
       }
     } catch (error: any) {
-      const mensajeError = JSON.stringify(error?.responseData || error?.message || 'Error desconocido')
+      const statusCode = Number(error?.status) || 500
+      const responseData = error?.responseData
+      const mensajeError = JSON.stringify(responseData || error?.message || 'Error desconocido')
+      const esErrorCliente = statusCode >= 400 && statusCode < 500
+
       solicitud.merge({
-        estado: 'pendiente',
+        estado: esErrorCliente ? 'fallido' : 'pendiente',
         errorExterno: mensajeError,
-        siguienteIntento: DateTime.now().plus({ minutes: 5 }),
+        siguienteIntento: esErrorCliente
+          ? DateTime.now()
+          : DateTime.now().plus({ minutes: 5 }),
       })
       await solicitud.save()
 
-      return {
-        solicitudId: solicitud.id,
-        estado: solicitud.estado,
-        idDespachoExterno: null,
-        mensaje: 'La solicitud fue recibida y se reintentará automáticamente.',
-        errorExterno: mensajeError,
-      }
+      Logger.error(
+        'Error API externo POST /despachosempresa (solicitud %s): status=%s respuesta=%s',
+        solicitud.id,
+        statusCode,
+        JSON.stringify(responseData ?? error?.message ?? 'sin detalle')
+      )
+
+      throw error
     }
   }
 

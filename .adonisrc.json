@@ -89,6 +89,10 @@
   "build": {
     "copy": [
       {
+        "from": "./.env",
+        "to": "./build/.env"
+      },
+      {
         "from": "./app/Dominio/Email/Templates",
         "to": "./build/app/Dominio/Email/Templates"
       }

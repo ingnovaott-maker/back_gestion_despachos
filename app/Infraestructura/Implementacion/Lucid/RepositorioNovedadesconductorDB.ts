@@ -143,7 +143,7 @@ export class RepositorioNovedadesconductorDB implements RepositorioNovedadescond
           estado: true,
           procesado: false
         };
-        const novedadConductor = await TblNovedadesconductor.create(novedadConductorDTO);
+        const novedadConductor = await TblNovedadesconductor.create(novedadConductorDTO as any);
 
         // 2. Enviar datos al API externo
         try {

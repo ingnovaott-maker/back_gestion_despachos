@@ -9,6 +9,7 @@ export interface HeadersTransaccionales {
   token: string
   documento: string
   'Content-Type': string
+  [clave: string]: string
 }
 
 export class ClienteApiSupertransporte {
@@ -74,7 +75,11 @@ export class ClienteApiSupertransporte {
     config?: Pick<AxiosRequestConfig, 'timeout'>
   ): Promise<any> {
     const headers = await this.obtenerHeadersTransaccionales(identificacion, idRol)
-
+console.log({
+  url,
+  body,
+  headers,
+})
     try {
       const respuesta = await axios.post(url, body, {
         headers,
@@ -90,6 +95,26 @@ export class ClienteApiSupertransporte {
     try {
       const respuesta = await axios.get(url, {
         headers: this.obtenerHeadersParametricos(),
+        params,
+        timeout: this.TIMEOUT_TRANSACCIONAL_MS,
+      })
+      return respuesta.data
+    } catch (error) {
+      throw this.toException(error)
+    }
+  }
+
+  public static obtenerHeadersTokenEstatico (): Record<string, string> {
+    return {
+      Authorization: `Bearer ${Env.get('TOKEN')}`,
+      'Content-Type': 'application/json',
+    }
+  }
+
+  public static async getConTokenEstatico (url: string, params?: Record<string, unknown>): Promise<any> {
+    try {
+      const respuesta = await axios.get(url, {
+        headers: this.obtenerHeadersTokenEstatico(),
         params,
         timeout: this.TIMEOUT_TRANSACCIONAL_MS,
       })
